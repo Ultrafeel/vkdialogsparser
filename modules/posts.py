@@ -1,6 +1,7 @@
 import json
 import os
 import vk_api
+import html
 from time import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -179,6 +180,8 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         post_text = post.get('text', '').strip()
         if not post_text:
             post_text = '<span class="no-content">[Нет текста]</span>'
+        else:
+            post_text = html.escape(post_text)
         
         html_content += f"""
         <div class="post">
@@ -252,6 +255,8 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 original_text = original.get('text', '').strip()
                 if not original_text:
                     original_text = '<span class="no-content">[Нет текста]</span>'
+                else:
+                    original_text = html.escape(original_text)
                 
                 html_content += f'''
                 <div class="original-post">
@@ -270,6 +275,8 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 comment_text = comment.get('text', '').strip()
                 if not comment_text:
                     comment_text = '<span class="no-content">[Нет текста]</span>'
+                else:
+                    comment_text = html.escape(comment_text)
                 
                 html_content += f"""
                 <div class="comment">
