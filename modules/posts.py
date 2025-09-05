@@ -6,6 +6,297 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 
+def save_posts_html(posts_data: Dict[str, Any], file_path: str):
+    """Save posts in HTML format."""
+    community = posts_data["community"]
+    posts = posts_data["posts"]
+    
+    html_content = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Посты: {community['name']}</title>
+    <style>
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f7f8fa; 
+            line-height: 1.4;
+        }}
+        .container {{ max-width: 800px; margin: 0 auto; }}
+        .header {{ 
+            background: linear-gradient(135deg, #4a76a8, #5a8bb8); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        .header h1 {{ margin: 0 0 10px 0; font-size: 28px; }}
+        .header p {{ margin: 5px 0; opacity: 0.9; }}
+        .post {{ 
+            background: white; 
+            margin: 20px 0; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e1e5eb;
+        }}
+        .post-header {{ 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #f0f2f5;
+        }}
+        .post-id {{ font-weight: bold; color: #4a76a8; font-size: 16px; }}
+        .post-date {{ color: #656d78; font-size: 14px; }}
+        .post-date a {{ color: #4a76a8; text-decoration: none; }}
+        .post-date a:hover {{ text-decoration: underline; }}
+        .post-text {{ 
+            margin: 15px 0; 
+            font-size: 16px; 
+            line-height: 1.5; 
+            white-space: pre-wrap;
+        }}
+        .attachments {{ 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            border-left: 4px solid #4a76a8;
+        }}
+        .attachment {{ 
+            margin: 8px 0; 
+            padding: 8px 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }}
+        .stats {{ 
+            display: flex; 
+            gap: 20px; 
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px solid #f0f2f5; 
+            font-size: 14px; 
+            color: #656d78;
+        }}
+        .stat {{ display: flex; align-items: center; gap: 5px; }}
+        .comments {{ 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px;
+        }}
+        .comment {{ 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border-left: 3px solid #4a76a8;
+        }}
+        .comment-header {{ 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 5px; 
+            font-size: 14px;
+        }}
+        .comment-header a {{ color: #4a76a8; text-decoration: none; }}
+        .comment-header a:hover {{ text-decoration: underline; }}
+        .copy-history {{ 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f0f8ff; 
+            border-radius: 8px;
+            border-left: 4px solid #4a76a8;
+        }}
+        .original-post {{ 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }}
+        .original-header {{ 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 8px; 
+            font-size: 14px;
+        }}
+        .original-header a {{ color: #4a76a8; text-decoration: none; }}
+        .original-header a:hover {{ text-decoration: underline; }}
+        .original-text {{ font-size: 14px; line-height: 1.4; }}
+        .attachment a {{ color: #4a76a8; text-decoration: none; }}
+        .attachment a:hover {{ text-decoration: underline; }}
+        .comment-text {{ font-size: 14px; line-height: 1.4; }}
+        .no-content {{ color: #656d78; font-style: italic; }}
+        .search-box {{ 
+            margin-bottom: 20px; 
+            padding: 12px; 
+            border: 2px solid #e1e5eb; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            width: 100%; 
+            box-sizing: border-box;
+        }}
+    </style>
+    <script>
+        function searchPosts() {{
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const posts = document.querySelectorAll('.post');
+            
+            posts.forEach(post => {{
+                const text = post.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {{
+                    post.style.display = 'block';
+                }} else {{
+                    post.style.display = 'none';
+                }}
+            }});
+        }}
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{community['name']}</h1>
+            <p><strong>ID:</strong> {community['id']} | <strong>Тип:</strong> {community.get('type', 'group')}</p>
+            <p><strong>Участников:</strong> {community.get('members_count', 'N/A')} | <strong>Постов:</strong> {len(posts)}</p>
+            <p><strong>Дата экспорта:</strong> {posts_data['export_date'][:19].replace('T', ' ')}</p>
+            {f'<p><strong>Описание:</strong> {community.get("description", "")[:200]}{"..." if len(community.get("description", "")) > 200 else ""}</p>' if community.get('description') else ''}
+        </div>
+        
+        <input type="text" id="searchBox" class="search-box" placeholder="Поиск по постам..." onkeyup="searchPosts()">
+        
+        <div class="posts">
+"""
+    
+    for post in posts:
+        post_text = post.get('text', '').strip()
+        if not post_text:
+            post_text = '<span class="no-content">[Нет текста]</span>'
+        
+        html_content += f"""
+        <div class="post">
+            <div class="post-header">
+                <div class="post-id">Пост #{post['id']}</div>
+                <div class="post-date"><a href="{post['vk_link']}" target="_blank" title="Открыть оригинал в VK">{post['date_formatted']}</a></div>
+            </div>
+            <div class="post-text">{post_text}</div>
+"""
+        
+        # Attachments
+        if post.get('attachments'):
+            html_content += '<div class="attachments"><strong>📎 Вложения:</strong>'
+            for att in post['attachments']:
+                att_type = att.get('type', 'unknown')
+                att_info = ""
+                att_link = ""
+                
+                if att_type == 'photo':
+                    att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
+                    if att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
+                    else:
+                        att_link = f'🖼️ Фото{att_info}'
+                elif att_type == 'video':
+                    att_info = f" - {att.get('title', 'Без названия')}"
+                    if att.get('vk_link'):
+                        att_link = f'<a href="{att["vk_link"]}" target="_blank">🎬 Видео{att_info}</a>'
+                    else:
+                        att_link = f'🎬 Видео{att_info}'
+                elif att_type == 'doc':
+                    att_info = f" - {att.get('title', 'Без названия')}"
+                    if att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">📄 Документ{att_info}</a>'
+                    else:
+                        att_link = f'📄 Документ{att_info}'
+                elif att_type == 'audio':
+                    artist = att.get('artist', '')
+                    title = att.get('title', 'Аудио')
+                    att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
+                elif att_type == 'link':
+                    if att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">🔗 {att.get("title", "Ссылка")}</a>'
+                    else:
+                        att_link = f'🔗 {att.get("title", "Ссылка")}'
+                else:
+                    att_link = f'📎 {att_type.upper()}'
+                
+                html_content += f'<div class="attachment">{att_link}</div>'
+            html_content += '</div>'
+        
+        # Stats
+        likes_count = post.get('likes', {}).get('count', 0)
+        reposts_count = post.get('reposts', {}).get('count', 0)
+        comments_count = len(post.get('comments', [])) if isinstance(post.get('comments'), list) else post.get('comments', {}).get('count', 0)
+        views_count = post.get('views', {}).get('count', 0)
+        
+        html_content += f"""
+            <div class="stats">
+                <div class="stat">❤️ {likes_count}</div>
+                <div class="stat">🔄 {reposts_count}</div>
+                <div class="stat">💬 {comments_count}</div>
+                <div class="stat">👁️ {views_count}</div>
+            </div>
+"""
+        
+        # Copy history (reposts)
+        if post.get('copy_history'):
+            html_content += '<div class="copy-history"><strong>🔄 Репост оригинала:</strong>'
+            for original in post['copy_history']:
+                original_text = original.get('text', '').strip()
+                if not original_text:
+                    original_text = '<span class="no-content">[Нет текста]</span>'
+                
+                html_content += f'''
+                <div class="original-post">
+                    <div class="original-header">
+                        <a href="{original['vk_link']}" target="_blank" title="Открыть оригинал в VK">Оригинал от {original['date_formatted']}</a>
+                    </div>
+                    <div class="original-text">{original_text}</div>
+                </div>
+                '''
+            html_content += '</div>'
+        
+        # Comments
+        if post.get('comments') and isinstance(post['comments'], list) and post['comments']:
+            html_content += '<div class="comments"><strong>💬 Комментарии:</strong>'
+            for comment in post['comments'][:10]:  # Show first 10 comments
+                comment_text = comment.get('text', '').strip()
+                if not comment_text:
+                    comment_text = '<span class="no-content">[Нет текста]</span>'
+                
+                html_content += f"""
+                <div class="comment">
+                    <div class="comment-header">
+                        <a href="{comment['vk_link']}" target="_blank" title="Открыть комментарий в VK">Пользователь {comment.get('from_id', 'Unknown')} | {comment['date_formatted']}</a>
+                    </div>
+                    <div class="comment-text">{comment_text}</div>
+                </div>
+"""
+            
+            if len(post['comments']) > 10:
+                html_content += f'<div class="no-content">... и ещё {len(post["comments"]) - 10} комментариев</div>'
+            
+            html_content += '</div>'
+        
+        html_content += '</div>'
+    
+    html_content += """
+        </div>
+    </div>
+</body>
+</html>"""
+    
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+
 class PostsManager:
     """Manages VK community posts dumping functionality."""
     
@@ -324,298 +615,9 @@ class PostsManager:
         # Save HTML
         if "html" in self.config.export_formats:
             html_path = os.path.join(directory, f"{community_name}_posts.html")
-            self._save_posts_html(posts_data, html_path)
+            save_posts_html(posts_data, html_path)
             print(f"HTML сохранен: {html_path}")
     
-    def _save_posts_html(self, posts_data: Dict[str, Any], file_path: str):
-        """Save posts in HTML format."""
-        community = posts_data["community"]
-        posts = posts_data["posts"]
-        
-        html_content = f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Посты: {community['name']}</title>
-    <style>
-        body {{ 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-            margin: 0; 
-            padding: 20px; 
-            background-color: #f7f8fa; 
-            line-height: 1.4;
-        }}
-        .container {{ max-width: 800px; margin: 0 auto; }}
-        .header {{ 
-            background: linear-gradient(135deg, #4a76a8, #5a8bb8); 
-            color: white; 
-            padding: 30px; 
-            border-radius: 12px; 
-            margin-bottom: 30px; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }}
-        .header h1 {{ margin: 0 0 10px 0; font-size: 28px; }}
-        .header p {{ margin: 5px 0; opacity: 0.9; }}
-        .post {{ 
-            background: white; 
-            margin: 20px 0; 
-            padding: 25px; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border: 1px solid #e1e5eb;
-        }}
-        .post-header {{ 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 15px; 
-            padding-bottom: 15px; 
-            border-bottom: 1px solid #f0f2f5;
-        }}
-        .post-id {{ font-weight: bold; color: #4a76a8; font-size: 16px; }}
-        .post-date {{ color: #656d78; font-size: 14px; }}
-        .post-date a {{ color: #4a76a8; text-decoration: none; }}
-        .post-date a:hover {{ text-decoration: underline; }}
-        .post-text {{ 
-            margin: 15px 0; 
-            font-size: 16px; 
-            line-height: 1.5; 
-            white-space: pre-wrap;
-        }}
-        .attachments {{ 
-            margin: 15px 0; 
-            padding: 15px; 
-            background: #f8f9fa; 
-            border-radius: 8px; 
-            border-left: 4px solid #4a76a8;
-        }}
-        .attachment {{ 
-            margin: 8px 0; 
-            padding: 8px 12px; 
-            background: white; 
-            border-radius: 6px; 
-            border: 1px solid #e1e5eb;
-        }}
-        .stats {{ 
-            display: flex; 
-            gap: 20px; 
-            margin-top: 15px; 
-            padding-top: 15px; 
-            border-top: 1px solid #f0f2f5; 
-            font-size: 14px; 
-            color: #656d78;
-        }}
-        .stat {{ display: flex; align-items: center; gap: 5px; }}
-        .comments {{ 
-            margin-top: 20px; 
-            padding: 15px; 
-            background: #f8f9fa; 
-            border-radius: 8px;
-        }}
-        .comment {{ 
-            margin: 10px 0; 
-            padding: 12px; 
-            background: white; 
-            border-radius: 6px; 
-            border-left: 3px solid #4a76a8;
-        }}
-        .comment-header {{ 
-            font-weight: bold; 
-            color: #4a76a8; 
-            margin-bottom: 5px; 
-            font-size: 14px;
-        }}
-        .comment-header a {{ color: #4a76a8; text-decoration: none; }}
-        .comment-header a:hover {{ text-decoration: underline; }}
-        .copy-history {{ 
-            margin: 15px 0; 
-            padding: 15px; 
-            background: #f0f8ff; 
-            border-radius: 8px;
-            border-left: 4px solid #4a76a8;
-        }}
-        .original-post {{ 
-            margin: 10px 0; 
-            padding: 12px; 
-            background: white; 
-            border-radius: 6px; 
-            border: 1px solid #e1e5eb;
-        }}
-        .original-header {{ 
-            font-weight: bold; 
-            color: #4a76a8; 
-            margin-bottom: 8px; 
-            font-size: 14px;
-        }}
-        .original-header a {{ color: #4a76a8; text-decoration: none; }}
-        .original-header a:hover {{ text-decoration: underline; }}
-        .original-text {{ font-size: 14px; line-height: 1.4; }}
-        .attachment a {{ color: #4a76a8; text-decoration: none; }}
-        .attachment a:hover {{ text-decoration: underline; }}
-        .comment-text {{ font-size: 14px; line-height: 1.4; }}
-        .no-content {{ color: #656d78; font-style: italic; }}
-        .search-box {{ 
-            margin-bottom: 20px; 
-            padding: 12px; 
-            border: 2px solid #e1e5eb; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            width: 100%; 
-            box-sizing: border-box;
-        }}
-    </style>
-    <script>
-        function searchPosts() {{
-            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
-            const posts = document.querySelectorAll('.post');
-            
-            posts.forEach(post => {{
-                const text = post.textContent.toLowerCase();
-                if (text.includes(searchTerm)) {{
-                    post.style.display = 'block';
-                }} else {{
-                    post.style.display = 'none';
-                }}
-            }});
-        }}
-    </script>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{community['name']}</h1>
-            <p><strong>ID:</strong> {community['id']} | <strong>Тип:</strong> {community.get('type', 'group')}</p>
-            <p><strong>Участников:</strong> {community.get('members_count', 'N/A')} | <strong>Постов:</strong> {len(posts)}</p>
-            <p><strong>Дата экспорта:</strong> {posts_data['export_date'][:19].replace('T', ' ')}</p>
-            {f'<p><strong>Описание:</strong> {community.get("description", "")[:200]}{"..." if len(community.get("description", "")) > 200 else ""}</p>' if community.get('description') else ''}
-        </div>
-        
-        <input type="text" id="searchBox" class="search-box" placeholder="Поиск по постам..." onkeyup="searchPosts()">
-        
-        <div class="posts">
-"""
-        
-        for post in posts:
-            post_text = post.get('text', '').strip()
-            if not post_text:
-                post_text = '<span class="no-content">[Нет текста]</span>'
-            
-            html_content += f"""
-            <div class="post">
-                <div class="post-header">
-                    <div class="post-id">Пост #{post['id']}</div>
-                    <div class="post-date"><a href="{post['vk_link']}" target="_blank" title="Открыть оригинал в VK">{post['date_formatted']}</a></div>
-                </div>
-                <div class="post-text">{post_text}</div>
-"""
-            
-            # Attachments
-            if post.get('attachments'):
-                html_content += '<div class="attachments"><strong>📎 Вложения:</strong>'
-                for att in post['attachments']:
-                    att_type = att.get('type', 'unknown')
-                    att_info = ""
-                    att_link = ""
-                    
-                    if att_type == 'photo':
-                        att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
-                        if att.get('url'):
-                            att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
-                        else:
-                            att_link = f'🖼️ Фото{att_info}'
-                    elif att_type == 'video':
-                        att_info = f" - {att.get('title', 'Без названия')}"
-                        if att.get('vk_link'):
-                            att_link = f'<a href="{att["vk_link"]}" target="_blank">🎬 Видео{att_info}</a>'
-                        else:
-                            att_link = f'🎬 Видео{att_info}'
-                    elif att_type == 'doc':
-                        att_info = f" - {att.get('title', 'Без названия')}"
-                        if att.get('url'):
-                            att_link = f'<a href="{att["url"]}" target="_blank">📄 Документ{att_info}</a>'
-                        else:
-                            att_link = f'📄 Документ{att_info}'
-                    elif att_type == 'audio':
-                        artist = att.get('artist', '')
-                        title = att.get('title', 'Аудио')
-                        att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
-                    elif att_type == 'link':
-                        if att.get('url'):
-                            att_link = f'<a href="{att["url"]}" target="_blank">🔗 {att.get("title", "Ссылка")}</a>'
-                        else:
-                            att_link = f'🔗 {att.get("title", "Ссылка")}'
-                    else:
-                        att_link = f'📎 {att_type.upper()}'
-                    
-                    html_content += f'<div class="attachment">{att_link}</div>'
-                html_content += '</div>'
-            
-            # Stats
-            likes_count = post.get('likes', {}).get('count', 0)
-            reposts_count = post.get('reposts', {}).get('count', 0)
-            comments_count = len(post.get('comments', [])) if isinstance(post.get('comments'), list) else post.get('comments', {}).get('count', 0)
-            views_count = post.get('views', {}).get('count', 0)
-            
-            html_content += f"""
-                <div class="stats">
-                    <div class="stat">❤️ {likes_count}</div>
-                    <div class="stat">🔄 {reposts_count}</div>
-                    <div class="stat">💬 {comments_count}</div>
-                    <div class="stat">👁️ {views_count}</div>
-                </div>
-"""
-            
-            # Copy history (reposts)
-            if post.get('copy_history'):
-                html_content += '<div class="copy-history"><strong>🔄 Репост оригинала:</strong>'
-                for original in post['copy_history']:
-                    original_text = original.get('text', '').strip()
-                    if not original_text:
-                        original_text = '<span class="no-content">[Нет текста]</span>'
-                    
-                    html_content += f'''
-                    <div class="original-post">
-                        <div class="original-header">
-                            <a href="{original['vk_link']}" target="_blank" title="Открыть оригинал в VK">Оригинал от {original['date_formatted']}</a>
-                        </div>
-                        <div class="original-text">{original_text}</div>
-                    </div>
-                    '''
-                html_content += '</div>'
-            
-            # Comments
-            if post.get('comments') and isinstance(post['comments'], list) and post['comments']:
-                html_content += '<div class="comments"><strong>💬 Комментарии:</strong>'
-                for comment in post['comments'][:10]:  # Show first 10 comments
-                    comment_text = comment.get('text', '').strip()
-                    if not comment_text:
-                        comment_text = '<span class="no-content">[Нет текста]</span>'
-                    
-                    html_content += f"""
-                    <div class="comment">
-                        <div class="comment-header">
-                            <a href="{comment['vk_link']}" target="_blank" title="Открыть комментарий в VK">Пользователь {comment.get('from_id', 'Unknown')} | {comment['date_formatted']}</a>
-                        </div>
-                        <div class="comment-text">{comment_text}</div>
-                    </div>
-"""
-                
-                if len(post['comments']) > 10:
-                    html_content += f'<div class="no-content">... и ещё {len(post["comments"]) - 10} комментариев</div>'
-                
-                html_content += '</div>'
-            
-            html_content += '</div>'
-        
-        html_content += """
-        </div>
-    </div>
-</body>
-</html>"""
-        
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
     
     def _clean_filename(self, filename: str) -> str:
         """Clean filename from invalid characters."""
