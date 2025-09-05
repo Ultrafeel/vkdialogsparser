@@ -230,6 +230,113 @@
         .json-content a:hover {
             color: #5dade2;
         }
+        
+        /* Video attachment styles */
+        .video-attachment {
+            margin: 10px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .video-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        
+        .video-thumbnail {
+            width: 160px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-right: 15px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .video-thumbnail:hover {
+            transform: scale(1.05);
+        }
+        
+        .video-info {
+            flex: 1;
+        }
+        
+        .video-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+        
+        .video-title a {
+            color: #e74c3c;
+            text-decoration: none;
+        }
+        
+        .video-title a:hover {
+            text-decoration: underline;
+        }
+        
+        .video-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #656d78;
+        }
+        
+        .video-description {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #2c3e50;
+            margin-top: 8px;
+            max-height: 60px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .video-description.expanded {
+            max-height: none;
+        }
+        
+        .video-description-toggle {
+            color: #4a76a8;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .video-description-toggle:hover {
+            text-decoration: underline;
+        }
+        
+        .video-frames {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .video-frame {
+            width: 80px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .video-frame:hover {
+            transform: scale(1.1);
+            border-color: #4a76a8;
+        }
         .search-box { 
             margin-bottom: 20px; 
             padding: 12px; 
@@ -607,8 +714,13 @@
         }
 
         function renderAttachment(att) {
-            let attLink = '';
             const attType = att.type || 'unknown';
+            
+            if (attType === 'video') {
+                return renderVideoAttachment(att);
+            }
+            
+            let attLink = '';
             
             switch (attType) {
                 case 'photo':
@@ -616,12 +728,6 @@
                     attLink = att.url ? 
                         `<a href="${att.url}" target="_blank">🖼️ Фото${info}</a>` : 
                         `🖼️ Фото${info}`;
-                    break;
-                case 'video':
-                    const videoInfo = att.title ? ` - ${att.title}` : '';
-                    attLink = att.vk_link ? 
-                        `<a href="${att.vk_link}" target="_blank">🎬 Видео${videoInfo}</a>` : 
-                        `🎬 Видео${videoInfo}`;
                     break;
                 case 'doc':
                     const docInfo = att.title ? ` - ${att.title}` : '';
@@ -644,6 +750,158 @@
             }
             
             return `<div class="attachment">${attLink}</div>`;
+        }
+        
+        function renderVideoAttachment(att) {
+            const video = att.original_data?.video || {};
+            const title = att.title || video.title || 'Видео';
+            const description = video.description || '';
+            const duration = formatDuration(att.duration || video.duration || 0);
+            const views = video.views || video.local_views || 0;
+            const comments = video.comments || 0;
+            const vkLink = att.vk_link || `https://vk.com/video${video.owner_id}_${video.id}`;
+            
+            // Get best thumbnail
+            const thumbnail = video.photo_800 || video.photo_320 || video.photo_130 || '';
+            
+            // Get first frames
+            const frames = [];
+            if (video.first_frame_800) frames.push(video.first_frame_800);
+            if (video.first_frame_320) frames.push(video.first_frame_320);
+            if (video.first_frame_160) frames.push(video.first_frame_160);
+            if (video.first_frame_130) frames.push(video.first_frame_130);
+            
+            const videoId = 'video_' + Math.random().toString(36).substr(2, 9);
+            
+            let html = `
+                <div class="video-attachment">
+                    <div class="video-header">
+                        🎬 Видео
+                    </div>
+                    <div style="display: flex; align-items: flex-start;">
+            `;
+            
+            // Thumbnail
+            if (thumbnail) {
+                html += `
+                    <img src="${thumbnail}" 
+                         alt="Превью видео" 
+                         class="video-thumbnail"
+                         onclick="window.open('${vkLink}', '_blank')"
+                         onerror="this.style.display='none'">
+                `;
+            }
+            
+            html += `
+                        <div class="video-info">
+                            <div class="video-title">
+                                <a href="${vkLink}" target="_blank">${escapeHtml(title)}</a>
+                            </div>
+                            <div class="video-meta">
+                                <span>⏱️ ${duration}</span>
+                                <span>👁️ ${formatNumber(views)}</span>
+                                <span>💬 ${formatNumber(comments)}</span>
+                            </div>
+            `;
+            
+            // Description
+            if (description && description.length > 0) {
+                const shortDesc = description.length > 150 ? description.substring(0, 150) + '...' : description;
+                html += `
+                    <div class="video-description" id="desc_${videoId}">
+                        ${escapeHtml(shortDesc)}
+                    </div>
+                `;
+                
+                if (description.length > 150) {
+                    html += `
+                        <div class="video-description-toggle" onclick="toggleDescription('${videoId}')">
+                            Показать полностью
+                        </div>
+                    `;
+                }
+            }
+            
+            html += `
+                        </div>
+                    </div>
+            `;
+            
+            // First frames
+            if (frames.length > 0) {
+                html += `
+                    <div class="video-frames">
+                        <span style="font-size: 12px; color: #656d78; margin-right: 10px;">Кадры:</span>
+                `;
+                
+                frames.slice(0, 4).forEach((frame, index) => {
+                    html += `
+                        <img src="${frame}" 
+                             alt="Кадр ${index + 1}" 
+                             class="video-frame"
+                             onclick="window.open('${frame}', '_blank')"
+                             onerror="this.style.display='none'">
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+            
+            html += `</div>`;
+            
+            // Store full description for toggle
+            if (description && description.length > 150) {
+                setTimeout(() => {
+                    window.videoDescriptions = window.videoDescriptions || {};
+                    window.videoDescriptions[videoId] = {
+                        short: shortDesc,
+                        full: description,
+                        expanded: false
+                    };
+                }, 100);
+            }
+            
+            return html;
+        }
+        
+        function formatDuration(seconds) {
+            if (!seconds) return '0:00';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (hours > 0) {
+                return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                return `${minutes}:${secs.toString().padStart(2, '0')}`;
+            }
+        }
+        
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+        
+        function toggleDescription(videoId) {
+            const descElement = document.getElementById(`desc_${videoId}`);
+            const toggleElement = descElement.nextElementSibling;
+            const videoDesc = window.videoDescriptions[videoId];
+            
+            if (!videoDesc) return;
+            
+            if (videoDesc.expanded) {
+                descElement.innerHTML = escapeHtml(videoDesc.short);
+                toggleElement.textContent = 'Показать полностью';
+                videoDesc.expanded = false;
+            } else {
+                descElement.innerHTML = escapeHtml(videoDesc.full);
+                toggleElement.textContent = 'Свернуть';
+                videoDesc.expanded = true;
+            }
         }
 
         function renderDialogs(data) {
