@@ -483,6 +483,7 @@
             const options = fileSelect.querySelectorAll('option[data-manual="true"]');
             options.forEach(option => option.remove());
             
+            let firstFile = null;
             for (const file of files) {
                 if (file.name.endsWith('.json')) {
                     const option = document.createElement('option');
@@ -494,7 +495,18 @@
                         file: file
                     }));
                     fileSelect.appendChild(option);
+                    
+                    // Remember first file for auto-selection
+                    if (!firstFile) {
+                        firstFile = option;
+                    }
                 }
+            }
+            
+            // Auto-select and load first file
+            if (firstFile) {
+                fileSelect.value = firstFile.value;
+                loadSelectedFile();
             }
         }
 
@@ -519,31 +531,37 @@
                 let jsonData;
                 const selectedOption = fileSelect.selectedOptions[0];
                 
-                if (selectedOption.hasAttribute('data-manual')) {
+                if (selectedOption && selectedOption.hasAttribute('data-manual')) {
                     // Load from file object
                     const fileInfo = JSON.parse(selectedOption.getAttribute('data-file'));
-                    const fileReader = new FileReader();
-                    
-                    fileReader.onload = function(e) {
-                        try {
-                            jsonData = JSON.parse(e.target.result);
-                            currentData = jsonData;
-                            renderContent(jsonData);
-                            searchBox.style.display = 'block';
-                        } catch (error) {
-                            content.innerHTML = `<div class="error">Ошибка парсинга JSON: ${error.message}</div>`;
-                        }
-                    };
                     
                     // Find the actual file object
                     const fileInput = document.querySelector('input[type="file"]');
+                    if (!fileInput || !fileInput.files) {
+                        throw new Error('Файл не найден');
+                    }
+                    
                     const files = Array.from(fileInput.files);
                     const targetFile = files.find(f => f.name === fileInfo.name);
                     
-                    if (targetFile) {
-                        fileReader.readAsText(targetFile);
+                    if (!targetFile) {
+                        throw new Error(`Файл ${fileInfo.name} не найден`);
                     }
-                    return;
+                    
+                    // Use Promise to handle FileReader
+                    jsonData = await new Promise((resolve, reject) => {
+                        const fileReader = new FileReader();
+                        fileReader.onload = function(e) {
+                            try {
+                                const data = JSON.parse(e.target.result);
+                                resolve(data);
+                            } catch (error) {
+                                reject(new Error(`Ошибка парсинга JSON: ${error.message}`));
+                            }
+                        };
+                        fileReader.onerror = () => reject(new Error('Ошибка чтения файла'));
+                        fileReader.readAsText(targetFile);
+                    });
                 } else {
                     // Load from URL
                     const response = await fetch(selectedValue);
