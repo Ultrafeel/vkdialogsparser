@@ -136,6 +136,58 @@
         .attachment a:hover { text-decoration: underline; }
         .comment-text { font-size: 14px; line-height: 1.4; }
         .no-content { color: #656d78; font-style: italic; }
+        
+        /* Tooltip styles */
+        .tooltip-trigger {
+            position: relative;
+            cursor: help;
+        }
+        
+        .tooltip-trigger::after {
+            content: '🔍';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 12px;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        
+        .tooltip-trigger:hover::after {
+            opacity: 1;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            z-index: 1000;
+            max-width: 500px;
+            max-height: 400px;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #34495e;
+            display: none;
+            word-break: break-all;
+        }
+        
+        .tooltip.show {
+            display: block;
+        }
+        
+        .tooltip-header {
+            color: #3498db;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 5px;
+        }
         .search-box { 
             margin-bottom: 20px; 
             padding: 12px; 
@@ -409,8 +461,10 @@
         function renderPost(post) {
             const postText = post.text ? escapeHtml(post.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
             
+            const postId = 'post_' + (post.id || Math.random().toString(36).substr(2, 9));
+            
             let html = `
-                <div class="post">
+                <div class="post" id="${postId}">
                     <div class="post-header">
                         <div class="post-id">Пост #${post.id}</div>
                         <div class="post-date">
@@ -421,6 +475,14 @@
                     </div>
                     <div class="post-text">${postText}</div>
             `;
+            
+            // Store post data for tooltip
+            setTimeout(() => {
+                const postElement = document.getElementById(postId);
+                if (postElement) {
+                    createTooltip(postElement, post, `Пост #${post.id} - Исходный JSON`);
+                }
+            }, 100);
             
             // Attachments
             if (post.attachments && post.attachments.length > 0) {
@@ -469,10 +531,12 @@
             if (post.comments && Array.isArray(post.comments) && post.comments.length > 0) {
                 html += '<div class="comments"><strong>💬 Комментарии:</strong>';
                 const commentsToShow = post.comments.slice(0, 10);
-                for (const comment of commentsToShow) {
+                for (let i = 0; i < commentsToShow.length; i++) {
+                    const comment = commentsToShow[i];
                     const commentText = comment.text ? escapeHtml(comment.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                    const commentId = `comment_${postId}_${i}`;
                     html += `
-                        <div class="comment">
+                        <div class="comment" id="${commentId}">
                             <div class="comment-header">
                                 ${comment.vk_link ? `<a href="${comment.vk_link}" target="_blank" title="Открыть комментарий в VK">` : ''}
                                 Пользователь ${comment.from_id || 'Unknown'} | ${comment.date_formatted || new Date(comment.date * 1000).toLocaleString('ru')}
@@ -481,6 +545,14 @@
                             <div class="comment-text">${commentText}</div>
                         </div>
                     `;
+                    
+                    // Store comment data for tooltip
+                    setTimeout(() => {
+                        const commentElement = document.getElementById(commentId);
+                        if (commentElement) {
+                            createTooltip(commentElement, comment, `Комментарий - Исходный JSON`);
+                        }
+                    }, 100);
                 }
                 if (post.comments.length > 10) {
                     html += `<div class="no-content">... и ещё ${post.comments.length - 10} комментариев</div>`;
@@ -555,26 +627,45 @@
         function renderDialog(dialog) {
             const messages = dialog.messages || [];
             const title = dialog.title || `Диалог ${dialog.id || 'Unknown'}`;
+            const dialogId = 'dialog_' + (dialog.id || Math.random().toString(36).substr(2, 9));
             
             let html = `
-                <div class="dialog-item">
+                <div class="dialog-item" id="${dialogId}">
                     <div class="dialog-header">
                         <span>${escapeHtml(title)}</span>
                         <span>${messages.length} сообщений</span>
                     </div>
             `;
             
+            // Store dialog data for tooltip
+            setTimeout(() => {
+                const dialogElement = document.getElementById(dialogId);
+                if (dialogElement) {
+                    createTooltip(dialogElement, dialog, `Диалог "${title}" - Исходный JSON`);
+                }
+            }, 100);
+            
             const messagesToShow = messages.slice(0, 10);
-            for (const message of messagesToShow) {
+            for (let i = 0; i < messagesToShow.length; i++) {
+                const message = messagesToShow[i];
                 const messageText = message.text ? escapeHtml(message.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                const messageId = `message_${dialogId}_${i}`;
                 html += `
-                    <div class="message">
+                    <div class="message" id="${messageId}">
                         <div class="message-header">
                             ${message.from_id || 'Unknown'} | ${message.date_formatted || new Date(message.date * 1000).toLocaleString('ru')}
                         </div>
                         <div>${messageText}</div>
                     </div>
                 `;
+                
+                // Store message data for tooltip
+                setTimeout(() => {
+                    const messageElement = document.getElementById(messageId);
+                    if (messageElement) {
+                        createTooltip(messageElement, message, `Сообщение - Исходный JSON`);
+                    }
+                }, 100);
             }
             
             if (messages.length > 10) {
@@ -610,6 +701,54 @@
                     post.style.display = 'none';
                 }
             });
+        }
+        
+        // Tooltip functionality
+        function createTooltip(element, jsonData, title) {
+            element.classList.add('tooltip-trigger');
+            
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.innerHTML = `<div class="tooltip-header">${title}</div>${JSON.stringify(jsonData, null, 2)}`;
+            document.body.appendChild(tooltip);
+            
+            element.addEventListener('mouseenter', function(e) {
+                const rect = element.getBoundingClientRect();
+                const tooltipRect = tooltip.getBoundingClientRect();
+                
+                // Position tooltip
+                let left = rect.left + window.scrollX;
+                let top = rect.bottom + window.scrollY + 10;
+                
+                // Adjust if tooltip goes off screen
+                if (left + 500 > window.innerWidth) {
+                    left = window.innerWidth - 520;
+                }
+                if (top + 400 > window.innerHeight + window.scrollY) {
+                    top = rect.top + window.scrollY - 410;
+                }
+                
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+                tooltip.classList.add('show');
+            });
+            
+            element.addEventListener('mouseleave', function() {
+                tooltip.classList.remove('show');
+            });
+            
+            // Remove tooltip when element is removed
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.removedNodes.forEach(function(node) {
+                        if (node === element || (node.contains && node.contains(element))) {
+                            tooltip.remove();
+                            observer.disconnect();
+                        }
+                    });
+                });
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
         }
 
         function escapeHtml(text) {
