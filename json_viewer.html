@@ -805,8 +805,9 @@
             `;
             
             // Description
+            let shortDesc = '';
             if (description && description.length > 0) {
-                const shortDesc = description.length > 150 ? description.substring(0, 150) + '...' : description;
+                shortDesc = description.length > 150 ? description.substring(0, 150) + '...' : description;
                 html += `
                     <div class="video-description" id="desc_${videoId}">
                         ${escapeHtml(shortDesc)}
