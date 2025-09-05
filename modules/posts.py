@@ -1,0 +1,472 @@
+import json
+import os
+import vk_api
+from time import time
+from datetime import datetime
+from typing import Dict, List, Any, Optional
+
+
+class PostsManager:
+    """Manages VK community posts dumping functionality."""
+    
+    def __init__(self, vk_session: vk_api.VkApi, config):
+        self.vk = vk_session
+        self.vk_tools = vk_api.tools.VkTools(self.vk)
+        self.config = config
+    
+    def get_community_info(self, community_id: str) -> Optional[Dict[str, Any]]:
+        """Get community information."""
+        try:
+            # Remove minus sign if present
+            clean_id = str(community_id).lstrip('-')
+            
+            community_data = self.vk.method("groups.getById", {
+                "group_ids": clean_id,
+                "fields": "description,members_count,activity"
+            })
+            
+            if community_data:
+                info = community_data[0]
+                return {
+                    "id": -int(clean_id),  # VK uses negative IDs for communities
+                    "name": info.get("name", ""),
+                    "screen_name": info.get("screen_name", ""),
+                    "description": info.get("description", ""),
+                    "members_count": info.get("members_count", 0),
+                    "activity": info.get("activity", ""),
+                    "type": info.get("type", "group")
+                }
+            return None
+            
+        except Exception as e:
+            print(f"Ошибка при получении информации о сообществе {community_id}: {e}")
+            return None
+    
+    def get_community_posts(self, community_id: str, count: int = 100) -> List[Dict[str, Any]]:
+        """Get posts from community wall."""
+        try:
+            # Remove minus sign if present and make it negative for VK API
+            clean_id = str(community_id).lstrip('-')
+            owner_id = -int(clean_id)
+            
+            posts_data = self.vk_tools.get_all(
+                method="wall.get",
+                max_count=count,
+                values={
+                    "owner_id": owner_id,
+                    "extended": 1,
+                    "filter": "all"
+                }
+            )
+            
+            posts = []
+            for post in posts_data.get('items', []):
+                formatted_post = self._format_post(post, owner_id)
+                
+                # Get comments if requested
+                if self.config.include_comments:
+                    formatted_post['comments'] = self._get_post_comments(owner_id, post['id'])
+                
+                # Get likes/reactions if requested
+                if self.config.include_reactions:
+                    formatted_post['likes'] = self._get_post_likes(owner_id, post['id'])
+                
+                posts.append(formatted_post)
+            
+            return posts
+            
+        except Exception as e:
+            print(f"Ошибка при получении постов сообщества {community_id}: {e}")
+            return []
+    
+    def _format_post(self, post: Dict[str, Any], owner_id: int) -> Dict[str, Any]:
+        """Format post data."""
+        post_id = post.get("id")
+        vk_link = self._generate_post_link(owner_id, post_id)
+        
+        formatted_post = {
+            "id": post_id,
+            "owner_id": owner_id,
+            "from_id": post.get("from_id", owner_id),
+            "date": post.get("date"),
+            "date_formatted": datetime.fromtimestamp(post.get("date", 0)).strftime('%d.%m.%Y %H:%M:%S'),
+            "vk_link": vk_link,
+            "text": post.get("text", ""),
+            "attachments": self._format_attachments(post.get("attachments", [])),
+            "post_type": post.get("post_type", "post"),
+            "copy_history": self._format_copy_history(post.get("copy_history", [])),
+            "can_pin": post.get("can_pin", 0),
+            "can_delete": post.get("can_delete", 0),
+            "can_edit": post.get("can_edit", 0),
+            "is_pinned": post.get("is_pinned", 0),
+            "marked_as_ads": post.get("marked_as_ads", 0),
+            "is_favorite": post.get("is_favorite", False),
+            "views": post.get("views", {}),
+            "reposts": post.get("reposts", {}),
+            "likes": post.get("likes", {}),
+            "comments": post.get("comments", {})
+        }
+        
+        return formatted_post
+    
+    def _get_post_comments(self, owner_id: int, post_id: int, count: int = 100) -> List[Dict[str, Any]]:
+        """Get comments for a specific post."""
+        try:
+            comments_data = self.vk.method("wall.getComments", {
+                "owner_id": owner_id,
+                "post_id": post_id,
+                "count": count,
+                "sort": "asc",
+                "extended": 1
+            })
+            
+            comments = []
+            for comment in comments_data.get('items', []):
+                comments.append({
+                    "id": comment.get("id"),
+                    "from_id": comment.get("from_id"),
+                    "date": comment.get("date"),
+                    "date_formatted": datetime.fromtimestamp(comment.get("date", 0)).strftime('%d.%m.%Y %H:%M:%S'),
+                    "text": comment.get("text", ""),
+                    "attachments": comment.get("attachments", []),
+                    "reply_to_user": comment.get("reply_to_user"),
+                    "reply_to_comment": comment.get("reply_to_comment"),
+                    "likes": comment.get("likes", {}),
+                    "thread": comment.get("thread", {})
+                })
+            
+            return comments
+            
+        except Exception as e:
+            print(f"Ошибка при получении комментариев для поста {post_id}: {e}")
+            return []
+    
+    def _get_post_likes(self, owner_id: int, post_id: int) -> Dict[str, Any]:
+        """Get likes/reactions for a specific post."""
+        try:
+            likes_data = self.vk.method("likes.getList", {
+                "type": "post",
+                "owner_id": owner_id,
+                "item_id": post_id,
+                "count": 1000,
+                "extended": 1
+            })
+            
+            return {
+                "count": likes_data.get("count", 0),
+                "user_likes": likes_data.get("user_likes", 0),
+                "can_like": likes_data.get("can_like", 1),
+                "can_publish": likes_data.get("can_publish", 1),
+                "users": [user.get("id") for user in likes_data.get("items", [])]
+            }
+            
+        except Exception as e:
+            print(f"Ошибка при получении лайков для поста {post_id}: {e}")
+            return {"count": 0, "user_likes": 0, "can_like": 1, "can_publish": 1, "users": []}
+    
+    def save_posts(self, community_info: Dict[str, Any], posts: List[Dict[str, Any]], directory: str):
+        """Save posts to files."""
+        if not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        
+        # Prepare data structure
+        posts_data = {
+            "type": "community_posts",
+            "export_date": datetime.now().isoformat(),
+            "community": community_info,
+            "posts_count": len(posts),
+            "posts": posts
+        }
+        
+        # Clean filename
+        community_name = self._clean_filename(community_info.get("name", "unknown"))
+        
+        # Save JSON
+        if "json" in self.config.export_formats:
+            json_path = os.path.join(directory, f"{community_name}_posts.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(posts_data, f, ensure_ascii=False, indent=2)
+            print(f"JSON сохранен: {json_path}")
+        
+        # Save HTML
+        if "html" in self.config.export_formats:
+            html_path = os.path.join(directory, f"{community_name}_posts.html")
+            self._save_posts_html(posts_data, html_path)
+            print(f"HTML сохранен: {html_path}")
+    
+    def _save_posts_html(self, posts_data: Dict[str, Any], file_path: str):
+        """Save posts in HTML format."""
+        community = posts_data["community"]
+        posts = posts_data["posts"]
+        
+        html_content = f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Посты: {community['name']}</title>
+    <style>
+        body {{ 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f7f8fa; 
+            line-height: 1.4;
+        }}
+        .container {{ max-width: 800px; margin: 0 auto; }}
+        .header {{ 
+            background: linear-gradient(135deg, #4a76a8, #5a8bb8); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
+        .header h1 {{ margin: 0 0 10px 0; font-size: 28px; }}
+        .header p {{ margin: 5px 0; opacity: 0.9; }}
+        .post {{ 
+            background: white; 
+            margin: 20px 0; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e1e5eb;
+        }}
+        .post-header {{ 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #f0f2f5;
+        }}
+        .post-id {{ font-weight: bold; color: #4a76a8; font-size: 16px; }}
+        .post-date {{ color: #656d78; font-size: 14px; }}
+        .post-text {{ 
+            margin: 15px 0; 
+            font-size: 16px; 
+            line-height: 1.5; 
+            white-space: pre-wrap;
+        }}
+        .attachments {{ 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            border-left: 4px solid #4a76a8;
+        }}
+        .attachment {{ 
+            margin: 8px 0; 
+            padding: 8px 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }}
+        .stats {{ 
+            display: flex; 
+            gap: 20px; 
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px solid #f0f2f5; 
+            font-size: 14px; 
+            color: #656d78;
+        }}
+        .stat {{ display: flex; align-items: center; gap: 5px; }}
+        .comments {{ 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px;
+        }}
+        .comment {{ 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border-left: 3px solid #4a76a8;
+        }}
+        .comment-header {{ 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 5px; 
+            font-size: 14px;
+        }}
+        .comment-text {{ font-size: 14px; line-height: 1.4; }}
+        .no-content {{ color: #656d78; font-style: italic; }}
+        .search-box {{ 
+            margin-bottom: 20px; 
+            padding: 12px; 
+            border: 2px solid #e1e5eb; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            width: 100%; 
+            box-sizing: border-box;
+        }}
+    </style>
+    <script>
+        function searchPosts() {{
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const posts = document.querySelectorAll('.post');
+            
+            posts.forEach(post => {{
+                const text = post.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {{
+                    post.style.display = 'block';
+                }} else {{
+                    post.style.display = 'none';
+                }}
+            }});
+        }}
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{community['name']}</h1>
+            <p><strong>ID:</strong> {community['id']} | <strong>Тип:</strong> {community.get('type', 'group')}</p>
+            <p><strong>Участников:</strong> {community.get('members_count', 'N/A')} | <strong>Постов:</strong> {len(posts)}</p>
+            <p><strong>Дата экспорта:</strong> {posts_data['export_date'][:19].replace('T', ' ')}</p>
+            {f'<p><strong>Описание:</strong> {community.get("description", "")[:200]}{"..." if len(community.get("description", "")) > 200 else ""}</p>' if community.get('description') else ''}
+        </div>
+        
+        <input type="text" id="searchBox" class="search-box" placeholder="Поиск по постам..." onkeyup="searchPosts()">
+        
+        <div class="posts">
+"""
+        
+        for post in posts:
+            post_text = post.get('text', '').strip()
+            if not post_text:
+                post_text = '<span class="no-content">[Нет текста]</span>'
+            
+            html_content += f"""
+            <div class="post">
+                <div class="post-header">
+                    <div class="post-id">Пост #{post['id']}</div>
+                    <div class="post-date">{post['date_formatted']}</div>
+                </div>
+                <div class="post-text">{post_text}</div>
+"""
+            
+            # Attachments
+            if post.get('attachments'):
+                html_content += '<div class="attachments"><strong>📎 Вложения:</strong>'
+                for att in post['attachments']:
+                    att_type = att.get('type', 'unknown')
+                    att_info = ""
+                    if att_type == 'photo':
+                        photo = att.get('photo', {})
+                        att_info = f" ({photo.get('width', 0)}x{photo.get('height', 0)})"
+                    elif att_type == 'video':
+                        video = att.get('video', {})
+                        att_info = f" - {video.get('title', 'Без названия')}"
+                    elif att_type == 'doc':
+                        doc = att.get('doc', {})
+                        att_info = f" - {doc.get('title', 'Без названия')}"
+                    
+                    html_content += f'<div class="attachment">📄 {att_type.upper()}{att_info}</div>'
+                html_content += '</div>'
+            
+            # Stats
+            likes_count = post.get('likes', {}).get('count', 0)
+            reposts_count = post.get('reposts', {}).get('count', 0)
+            comments_count = post.get('comments', {}).get('count', 0)
+            views_count = post.get('views', {}).get('count', 0)
+            
+            html_content += f"""
+                <div class="stats">
+                    <div class="stat">❤️ {likes_count}</div>
+                    <div class="stat">🔄 {reposts_count}</div>
+                    <div class="stat">💬 {comments_count}</div>
+                    <div class="stat">👁️ {views_count}</div>
+                </div>
+"""
+            
+            # Comments
+            if post.get('comments') and isinstance(post['comments'], list) and post['comments']:
+                html_content += '<div class="comments"><strong>💬 Комментарии:</strong>'
+                for comment in post['comments'][:10]:  # Show first 10 comments
+                    comment_text = comment.get('text', '').strip()
+                    if not comment_text:
+                        comment_text = '<span class="no-content">[Нет текста]</span>'
+                    
+                    html_content += f"""
+                    <div class="comment">
+                        <div class="comment-header">
+                            Пользователь {comment.get('from_id', 'Unknown')} | {comment['date_formatted']}
+                        </div>
+                        <div class="comment-text">{comment_text}</div>
+                    </div>
+"""
+                
+                if len(post['comments']) > 10:
+                    html_content += f'<div class="no-content">... и ещё {len(post["comments"]) - 10} комментариев</div>'
+                
+                html_content += '</div>'
+            
+            html_content += '</div>'
+        
+        html_content += """
+        </div>
+    </div>
+</body>
+</html>"""
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+    
+    def _clean_filename(self, filename: str) -> str:
+        """Clean filename from invalid characters."""
+        invalid_chars = '<>:"/\\|?*'
+        for char in invalid_chars:
+            filename = filename.replace(char, "_")
+        return filename[:100]  # Limit length
+    
+    def dump_posts(self) -> bool:
+        """Main function to dump community posts."""
+        try:
+            print("Получение информации о сообществе...")
+            community_info = self.get_community_info(self.config.vk_community_id)
+            
+            if not community_info:
+                print("Не удалось получить информацию о сообществе.")
+                return False
+            
+            print(f"Сообщество: {community_info['name']} (ID: {community_info['id']})")
+            print(f"Участников: {community_info.get('members_count', 'N/A')}")
+            
+            print(f"\nПолучение постов (максимум {self.config.posts_count})...")
+            posts = self.get_community_posts(self.config.vk_community_id, self.config.posts_count)
+            
+            if not posts:
+                print("Посты не найдены или произошла ошибка.")
+                return False
+            
+            print(f"Найдено {len(posts)} постов")
+            
+            # Preview first few posts
+            print("Первые несколько постов для выгрузки:")
+            for post in posts[:min(3, len(posts))]:
+                text = post.get('text', '[Нет текста]')[:100]
+                print(f"- Пост #{post['id']}: {text}{'...' if len(post.get('text', '')) > 100 else ''}")
+            
+            # Confirm before proceeding
+            confirm = input(f"\nПродолжить выгрузку {len(posts)} постов? (y/N): ").lower() == 'y'
+            if not confirm:
+                print("Операция отменена.")
+                return False
+            
+            # Create output directory
+            output_dir = self.config.full_posts_path
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Save posts
+            print("Сохранение постов...")
+            self.save_posts(community_info, posts, output_dir)
+            
+            print(f"\n✅ Выгрузка постов завершена! Файлы сохранены в: {output_dir}")
+            return True
+            
+        except Exception as e:
+            print(f"Ошибка при выгрузке постов: {e}")
+            return False
