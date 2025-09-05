@@ -554,7 +554,7 @@ class PostsManager:
             # Stats
             likes_count = post.get('likes', {}).get('count', 0)
             reposts_count = post.get('reposts', {}).get('count', 0)
-            comments_count = post.get('comments', {}).get('count', 0)
+            comments_count = len(post.get('comments', [])) if isinstance(post.get('comments'), list) else post.get('comments', {}).get('count', 0)
             views_count = post.get('views', {}).get('count', 0)
             
             html_content += f"""
