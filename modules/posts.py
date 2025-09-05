@@ -17,18 +17,25 @@ class PostsManager:
     def get_community_info(self, community_id: str) -> Optional[Dict[str, Any]]:
         """Get community information."""
         try:
-            # Remove minus sign if present
-            clean_id = str(community_id).lstrip('-')
-            
-            community_data = self.vk.method("groups.getById", {
-                "group_ids": clean_id,
-                "fields": "description,members_count,activity"
-            })
+            # Support both numeric IDs and domain names
+            if community_id.lstrip('-').isdigit():
+                # Numeric ID
+                clean_id = str(community_id).lstrip('-')
+                community_data = self.vk.method("groups.getById", {
+                    "group_ids": clean_id,
+                    "fields": "description,members_count,activity"
+                })
+            else:
+                # Domain name
+                community_data = self.vk.method("groups.getById", {
+                    "group_ids": community_id,
+                    "fields": "description,members_count,activity"
+                })
             
             if community_data:
                 info = community_data[0]
                 return {
-                    "id": -int(clean_id),  # VK uses negative IDs for communities
+                    "id": -int(info.get("id")),  # VK uses negative IDs for communities
                     "name": info.get("name", ""),
                     "screen_name": info.get("screen_name", ""),
                     "description": info.get("description", ""),
@@ -45,19 +52,36 @@ class PostsManager:
     def get_community_posts(self, community_id: str, count: int = 100) -> List[Dict[str, Any]]:
         """Get posts from community wall."""
         try:
-            # Remove minus sign if present and make it negative for VK API
-            clean_id = str(community_id).lstrip('-')
-            owner_id = -int(clean_id)
-            
-            posts_data = self.vk_tools.get_all(
-                method="wall.get",
-                max_count=count,
-                values={
-                    "owner_id": owner_id,
-                    "extended": 1,
-                    "filter": "all"
-                }
-            )
+            # Determine if community_id is numeric ID or domain name
+            if community_id.lstrip('-').isdigit():
+                # Numeric ID - use owner_id parameter
+                clean_id = str(community_id).lstrip('-')
+                owner_id = -int(clean_id)
+                posts_data = self.vk_tools.get_all(
+                    method="wall.get",
+                    max_count=count,
+                    values={
+                        "owner_id": owner_id,
+                        "extended": 1,
+                        "filter": "all"
+                    }
+                )
+            else:
+                # Domain name - use domain parameter
+                posts_data = self.vk_tools.get_all(
+                    method="wall.get",
+                    max_count=count,
+                    values={
+                        "domain": community_id,
+                        "extended": 1,
+                        "filter": "all"
+                    }
+                )
+                # Get owner_id from response for further processing
+                if posts_data.get('groups'):
+                    owner_id = -posts_data['groups'][0]['id']
+                else:
+                    raise Exception(f"Не удалось найти сообщество с доменом: {community_id}")
             
             posts = []
             for post in posts_data.get('items', []):

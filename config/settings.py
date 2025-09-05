@@ -82,12 +82,11 @@ class Config:
         
         # Validate community ID format if needed
         if self.vk_community_id:
-            try:
-                # Remove minus sign if present and validate it's a number
-                community_id = str(self.vk_community_id).lstrip('-')
-                int(community_id)
-            except ValueError:
-                raise ValueError(f"Неверный формат ID сообщества: {self.vk_community_id}")
+            community_id = str(self.vk_community_id).strip()
+            # Check if it's a valid numeric ID or domain name
+            if not (community_id.lstrip('-').isdigit() or 
+                   (community_id.replace('_', '').replace('.', '').isalnum() and len(community_id) > 0)):
+                raise ValueError(f"Неверный формат ID сообщества: {self.vk_community_id}. Используйте числовой ID или доменное имя.")
     
     @property
     def export_formats(self) -> List[str]:
