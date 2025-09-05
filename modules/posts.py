@@ -181,7 +181,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         if not post_text:
             post_text = '<span class="no-content">[Нет текста]</span>'
         else:
-            post_text = html.escape(post_text)
+            post_text = html.escape(post_text).replace('\n', '<br>')
         
         html_content += f"""
         <div class="post">
@@ -256,7 +256,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 if not original_text:
                     original_text = '<span class="no-content">[Нет текста]</span>'
                 else:
-                    original_text = html.escape(original_text)
+                    original_text = html.escape(original_text).replace('\n', '<br>')
                 
                 html_content += f'''
                 <div class="original-post">
@@ -276,7 +276,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 if not comment_text:
                     comment_text = '<span class="no-content">[Нет текста]</span>'
                 else:
-                    comment_text = html.escape(comment_text)
+                    comment_text = html.escape(comment_text).replace('\n', '<br>')
                 
                 html_content += f"""
                 <div class="comment">
