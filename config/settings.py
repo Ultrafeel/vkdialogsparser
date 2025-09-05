@@ -12,7 +12,6 @@ class Config:
         
         # VK API Configuration
         self.vk_token = self._get_env_or_input("VK_TOKEN", "Введите VK токен: ", required=True)
-        self.vk_app_id = self._get_env_or_input("VK_APP_ID", "Введите VK App ID (опционально): ")
         
         # Operation Mode
         self.dump_mode = self._get_env_or_input("DUMP_MODE", "Режим работы (dialogs/posts/both) [dialogs]: ", default="dialogs")
