@@ -7,6 +7,127 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 
+def format_duration(seconds: int) -> str:
+    """Format duration in seconds to HH:MM:SS or MM:SS format."""
+    if not seconds:
+        return '0:00'
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes}:{secs:02d}"
+
+
+def format_number(num: int) -> str:
+    """Format large numbers with K/M suffixes."""
+    if num >= 1000000:
+        return f"{num / 1000000:.1f}M"
+    elif num >= 1000:
+        return f"{num / 1000:.1f}K"
+    return str(num)
+
+
+def render_video_attachment(att: Dict[str, Any]) -> str:
+    """Render video attachment with enhanced display."""
+    video = att.get('original_data', {}).get('video', {})
+    title = att.get('title') or video.get('title', 'Видео')
+    description = video.get('description', '')
+    duration = format_duration(att.get('duration') or video.get('duration', 0))
+    views = video.get('views') or video.get('local_views', 0)
+    comments = video.get('comments', 0)
+    vk_link = att.get('vk_link') or f"https://vk.com/video{video.get('owner_id', '')}_{video.get('id', '')}"
+    
+    # Get best thumbnail
+    thumbnail = video.get('photo_800') or video.get('photo_320') or video.get('photo_130', '')
+    
+    # Get first frames
+    frames = []
+    for frame_key in ['first_frame_800', 'first_frame_320', 'first_frame_160', 'first_frame_130']:
+        if video.get(frame_key):
+            frames.append(video[frame_key])
+    
+    html_content = f'''
+        <div class="video-attachment">
+            <div class="video-header">
+                🎬 Видео
+            </div>
+            <div style="display: flex; align-items: flex-start;">
+    '''
+    
+    # Thumbnail
+    if thumbnail:
+        html_content += f'''
+                <a href="{vk_link}" target="_blank">
+                    <img src="{thumbnail}" 
+                         alt="Превью видео" 
+                         class="video-thumbnail"
+                         onerror="this.style.display='none'">
+                </a>
+        '''
+    
+    html_content += f'''
+                <div class="video-info">
+                    <div class="video-title">
+                        <a href="{vk_link}" target="_blank">{html.escape(title)}</a>
+                    </div>
+                    <div class="video-meta">
+                        <span>⏱️ {duration}</span>
+                        <span>👁️ {format_number(views)}</span>
+                        <span>💬 {format_number(comments)}</span>
+                    </div>
+    '''
+    
+    # Description
+    if description:
+        # Truncate long descriptions
+        if len(description) > 200:
+            short_desc = description[:200] + '...'
+            html_content += f'''
+                    <div class="video-description">
+                        {html.escape(short_desc)}
+                        <div class="video-description-full" style="display: none;">
+                            {html.escape(description)}
+                        </div>
+                    </div>
+            '''
+        else:
+            html_content += f'''
+                    <div class="video-description">
+                        {html.escape(description)}
+                    </div>
+            '''
+    
+    html_content += '''
+                </div>
+            </div>
+    '''
+    
+    # First frames
+    if frames:
+        html_content += '''
+            <div class="video-frames">
+                <span style="font-size: 12px; color: #656d78; margin-right: 10px;">Кадры:</span>
+        '''
+        
+        for i, frame in enumerate(frames[:4]):
+            html_content += f'''
+                <a href="{frame}" target="_blank">
+                    <img src="{frame}" 
+                         alt="Кадр {i + 1}" 
+                         class="video-frame"
+                         onerror="this.style.display='none'">
+                </a>
+            '''
+        
+        html_content += '</div>'
+    
+    html_content += '</div>'
+    return html_content
+
+
 def save_posts_html(posts_data: Dict[str, Any], file_path: str):
     """Save posts in HTML format."""
     community = posts_data["community"]
@@ -135,6 +256,94 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         .attachment a:hover {{ text-decoration: underline; }}
         .comment-text {{ font-size: 14px; line-height: 1.4; }}
         .no-content {{ color: #656d78; font-style: italic; }}
+        
+        /* Video attachment styles */
+        .video-attachment {{
+            margin: 10px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+        }}
+        
+        .video-header {{
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #e74c3c;
+        }}
+        
+        .video-thumbnail {{
+            width: 160px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-right: 15px;
+            transition: transform 0.2s;
+        }}
+        
+        .video-thumbnail:hover {{
+            transform: scale(1.05);
+        }}
+        
+        .video-info {{
+            flex: 1;
+        }}
+        
+        .video-title {{
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }}
+        
+        .video-title a {{
+            color: #e74c3c;
+            text-decoration: none;
+        }}
+        
+        .video-title a:hover {{
+            text-decoration: underline;
+        }}
+        
+        .video-meta {{
+            display: flex;
+            gap: 15px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #656d78;
+        }}
+        
+        .video-description {{
+            font-size: 14px;
+            line-height: 1.4;
+            color: #2c3e50;
+            margin-top: 8px;
+        }}
+        
+        .video-frames {{
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }}
+        
+        .video-frame {{
+            width: 80px;
+            height: 45px;
+            object-fit: cover;
+            border-radius: 4px;
+            transition: transform 0.2s;
+            border: 2px solid transparent;
+        }}
+        
+        .video-frame:hover {{
+            transform: scale(1.1);
+            border-color: #4a76a8;
+        }}
         .search-box {{ 
             margin-bottom: 20px; 
             padding: 12px; 
@@ -207,11 +416,9 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                     else:
                         att_link = f'🖼️ Фото{att_info}'
                 elif att_type == 'video':
-                    att_info = f" - {att.get('title', 'Без названия')}"
-                    if att.get('vk_link'):
-                        att_link = f'<a href="{att["vk_link"]}" target="_blank">🎬 Видео{att_info}</a>'
-                    else:
-                        att_link = f'🎬 Видео{att_info}'
+                    # Use enhanced video rendering
+                    html_content += render_video_attachment(att)
+                    continue
                 elif att_type == 'doc':
                     att_info = f" - {att.get('title', 'Без названия')}"
                     if att.get('url'):
@@ -230,7 +437,8 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 else:
                     att_link = f'📎 {att_type.upper()}'
                 
-                html_content += f'<div class="attachment">{att_link}</div>'
+                if att_link:  # Only add if att_link is not empty (video attachments are handled separately)
+                    html_content += f'<div class="attachment">{att_link}</div>'
             html_content += '</div>'
         
         # Stats
