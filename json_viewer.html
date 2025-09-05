@@ -137,13 +137,13 @@
         .comment-text { font-size: 14px; line-height: 1.4; }
         .no-content { color: #656d78; font-style: italic; }
         
-        /* Tooltip styles */
-        .tooltip-trigger {
+        /* JSON Modal styles */
+        .json-trigger {
             position: relative;
-            cursor: help;
+            cursor: pointer;
         }
         
-        .tooltip-trigger::after {
+        .json-trigger::after {
             content: '🔍';
             position: absolute;
             top: 5px;
@@ -151,42 +151,86 @@
             font-size: 12px;
             opacity: 0.5;
             transition: opacity 0.2s;
+            background: rgba(255,255,255,0.8);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
         
-        .tooltip-trigger:hover::after {
+        .json-trigger:hover::after {
             opacity: 1;
+            background: rgba(255,255,255,1);
         }
         
-        .tooltip {
-            position: absolute;
+        .json-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .json-modal.show {
+            display: flex;
+        }
+        
+        .json-modal-content {
             background: #2c3e50;
             color: #ecf0f1;
-            padding: 15px;
-            border-radius: 8px;
+            padding: 20px;
+            border-radius: 12px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
             line-height: 1.4;
             white-space: pre-wrap;
-            z-index: 1000;
-            max-width: 500px;
-            max-height: 400px;
+            max-width: 80vw;
+            max-height: 80vh;
             overflow: auto;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             border: 1px solid #34495e;
-            display: none;
             word-break: break-all;
+            position: relative;
         }
         
-        .tooltip.show {
-            display: block;
-        }
-        
-        .tooltip-header {
+        .json-modal-header {
             color: #3498db;
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             border-bottom: 1px solid #34495e;
-            padding-bottom: 5px;
+            padding-bottom: 10px;
+            padding-right: 30px;
+        }
+        
+        .json-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        
+        .json-modal-close:hover {
+            background: #c0392b;
+        }
+        
+        .json-content {
+            font-size: 11px;
+            line-height: 1.3;
         }
         .search-box { 
             margin-bottom: 20px; 
@@ -476,11 +520,11 @@
                     <div class="post-text">${postText}</div>
             `;
             
-            // Store post data for tooltip
+            // Store post data for modal
             setTimeout(() => {
                 const postElement = document.getElementById(postId);
                 if (postElement) {
-                    createTooltip(postElement, post, `Пост #${post.id} - Исходный JSON`);
+                    createJsonModal(postElement, post, `Пост #${post.id} - Исходный JSON`);
                 }
             }, 100);
             
@@ -546,11 +590,11 @@
                         </div>
                     `;
                     
-                    // Store comment data for tooltip
+                    // Store comment data for modal
                     setTimeout(() => {
                         const commentElement = document.getElementById(commentId);
                         if (commentElement) {
-                            createTooltip(commentElement, comment, `Комментарий - Исходный JSON`);
+                            createJsonModal(commentElement, comment, `Комментарий - Исходный JSON`);
                         }
                     }, 100);
                 }
@@ -637,11 +681,11 @@
                     </div>
             `;
             
-            // Store dialog data for tooltip
+            // Store dialog data for modal
             setTimeout(() => {
                 const dialogElement = document.getElementById(dialogId);
                 if (dialogElement) {
-                    createTooltip(dialogElement, dialog, `Диалог "${title}" - Исходный JSON`);
+                    createJsonModal(dialogElement, dialog, `Диалог "${title}" - Исходный JSON`);
                 }
             }, 100);
             
@@ -659,11 +703,11 @@
                     </div>
                 `;
                 
-                // Store message data for tooltip
+                // Store message data for modal
                 setTimeout(() => {
                     const messageElement = document.getElementById(messageId);
                     if (messageElement) {
-                        createTooltip(messageElement, message, `Сообщение - Исходный JSON`);
+                        createJsonModal(messageElement, message, `Сообщение - Исходный JSON`);
                     }
                 }, 100);
             }
@@ -703,52 +747,72 @@
             });
         }
         
-        // Tooltip functionality
-        function createTooltip(element, jsonData, title) {
-            element.classList.add('tooltip-trigger');
+        // JSON Modal functionality
+        function createJsonModal(element, jsonData, title) {
+            element.classList.add('json-trigger');
             
-            const tooltip = document.createElement('div');
-            tooltip.className = 'tooltip';
-            tooltip.innerHTML = `<div class="tooltip-header">${title}</div>${JSON.stringify(jsonData, null, 2)}`;
-            document.body.appendChild(tooltip);
+            element.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showJsonModal(jsonData, title);
+            });
+        }
+        
+        function showJsonModal(jsonData, title) {
+            // Remove existing modal if any
+            const existingModal = document.querySelector('.json-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
             
-            element.addEventListener('mouseenter', function(e) {
-                const rect = element.getBoundingClientRect();
-                const tooltipRect = tooltip.getBoundingClientRect();
-                
-                // Position tooltip
-                let left = rect.left + window.scrollX;
-                let top = rect.bottom + window.scrollY + 10;
-                
-                // Adjust if tooltip goes off screen
-                if (left + 500 > window.innerWidth) {
-                    left = window.innerWidth - 520;
+            // Create modal
+            const modal = document.createElement('div');
+            modal.className = 'json-modal';
+            
+            const modalContent = document.createElement('div');
+            modalContent.className = 'json-modal-content';
+            
+            const closeButton = document.createElement('button');
+            closeButton.className = 'json-modal-close';
+            closeButton.innerHTML = '×';
+            closeButton.onclick = function() {
+                modal.remove();
+            };
+            
+            const header = document.createElement('div');
+            header.className = 'json-modal-header';
+            header.textContent = title;
+            
+            const content = document.createElement('div');
+            content.className = 'json-content';
+            content.textContent = JSON.stringify(jsonData, null, 2);
+            
+            modalContent.appendChild(closeButton);
+            modalContent.appendChild(header);
+            modalContent.appendChild(content);
+            modal.appendChild(modalContent);
+            
+            // Close on background click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
                 }
-                if (top + 400 > window.innerHeight + window.scrollY) {
-                    top = rect.top + window.scrollY - 410;
+            });
+            
+            // Close on Escape key
+            const escapeHandler = function(e) {
+                if (e.key === 'Escape') {
+                    modal.remove();
+                    document.removeEventListener('keydown', escapeHandler);
                 }
-                
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
-                tooltip.classList.add('show');
-            });
+            };
+            document.addEventListener('keydown', escapeHandler);
             
-            element.addEventListener('mouseleave', function() {
-                tooltip.classList.remove('show');
-            });
+            document.body.appendChild(modal);
             
-            // Remove tooltip when element is removed
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    mutation.removedNodes.forEach(function(node) {
-                        if (node === element || (node.contains && node.contains(element))) {
-                            tooltip.remove();
-                            observer.disconnect();
-                        }
-                    });
-                });
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
+            // Show modal with animation
+            setTimeout(() => {
+                modal.classList.add('show');
+            }, 10);
         }
 
         function escapeHtml(text) {
