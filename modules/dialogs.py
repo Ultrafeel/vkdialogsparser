@@ -86,16 +86,21 @@ class DialogsManager:
             )
 
             def format_message(message):
+                message_id = message["id"]
+                from_id = message.get("from_id")
+                
                 return {
-                    "message_id": message["id"],
+                    "message_id": message_id,
                     "dialog_id": dialog_id,
                     "date": message.get("date"),
-                    "from_id": message.get("from_id"),
-                    "fwd_messages": message.get("fwd_messages", []),
+                    "date_formatted": datetime.fromtimestamp(message.get("date", 0)).strftime('%d.%m.%Y %H:%M:%S'),
+                    "from_id": from_id,
+                    "fwd_messages": self._format_forwarded_messages(message.get("fwd_messages", [])),
                     "text": message.get("text", ""),
-                    "attachments": message.get("attachments", []),
+                    "attachments": self._format_message_attachments(message.get("attachments", [])),
                     "reply_message": message.get("reply_message"),
-                    "action": message.get("action")
+                    "action": message.get("action"),
+                    "vk_link": self._generate_message_link(dialog_id, message_id)
                 }
 
             start = time()
@@ -144,6 +149,12 @@ class DialogsManager:
         .dialog-header {{ background: #4a76a8; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
         .message {{ background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
         .message-header {{ font-weight: bold; color: #4a76a8; margin-bottom: 5px; }}
+        .message-header a {{ color: #4a76a8; text-decoration: none; }}
+        .message-header a:hover {{ text-decoration: underline; }}
+        .attachment a {{ color: #4a76a8; text-decoration: none; }}
+        .attachment a:hover {{ text-decoration: underline; }}
+        .fwd-message a {{ color: #4a76a8; text-decoration: none; }}
+        .fwd-message a:hover {{ text-decoration: underline; }}
         .message-text {{ margin: 10px 0; }}
         .attachments {{ margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px; }}
         .attachment {{ margin: 5px 0; }}
@@ -167,7 +178,7 @@ class DialogsManager:
             html_content += f"""
         <div class="message">
             <div class="message-header">
-                Сообщение #{msg['message_id']} от {msg.get('from_id', 'Unknown')} | {date_str}
+                <a href="{msg['vk_link']}" target="_blank" title="Открыть сообщение в VK">Сообщение #{msg['message_id']} от {msg.get('from_id', 'Unknown')} | {msg['date_formatted']}</a>
             </div>
             <div class="message-text">{msg.get('text', '[Нет текста]')}</div>
 """
@@ -176,13 +187,36 @@ class DialogsManager:
                 html_content += '<div class="attachments"><strong>Вложения:</strong><br>'
                 for att in msg['attachments']:
                     att_type = att.get('type', 'unknown')
-                    html_content += f'<div class="attachment">📎 {att_type}</div>'
+                    att_link = ""
+                    
+                    if att_type == 'photo' and att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото</a>'
+                    elif att_type == 'video' and att.get('vk_link'):
+                        att_link = f'<a href="{att["vk_link"]}" target="_blank">🎬 {att.get("title", "Видео")}</a>'
+                    elif att_type == 'doc' and att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">📄 {att.get("title", "Документ")}</a>'
+                    elif att_type == 'sticker' and att.get('url'):
+                        att_link = f'<a href="{att["url"]}" target="_blank">😊 Стикер</a>'
+                    elif att_type == 'wall' and att.get('vk_link'):
+                        att_link = f'<a href="{att["vk_link"]}" target="_blank">📝 Пост на стене</a>'
+                    elif att_type == 'audio':
+                        artist = att.get('artist', '')
+                        title = att.get('title', 'Аудио')
+                        att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
+                    else:
+                        att_link = f'📎 {att_type.upper()}'
+                    
+                    html_content += f'<div class="attachment">{att_link}</div>'
                 html_content += '</div>'
             
             if msg.get('fwd_messages'):
                 html_content += '<div class="forwarded"><strong>Пересланные сообщения:</strong><br>'
                 for fwd in msg['fwd_messages']:
-                    html_content += f'<div>↳ {fwd.get("text", "[Нет текста]")}</div>'
+                    fwd_text = fwd.get('text', '[Нет текста]')
+                    if fwd.get('vk_link'):
+                        html_content += f'<div class="fwd-message">↳ <a href="{fwd["vk_link"]}" target="_blank" title="Открыть оригинал в VK">{fwd["date_formatted"]}</a>: {fwd_text}</div>'
+                    else:
+                        html_content += f'<div class="fwd-message">↳ {fwd.get("date_formatted", "")}: {fwd_text}</div>'
                 html_content += '</div>'
             
             html_content += '</div>'
@@ -201,6 +235,95 @@ class DialogsManager:
             return ""
         return directory.strip("/\\")
 
+    def _generate_message_link(self, peer_id: int, message_id: int) -> str:
+        """Generate VK link to message."""
+        if peer_id > 0:
+            # User dialog
+            return f"https://vk.com/im?sel={peer_id}&msgid={message_id}"
+        elif peer_id < 0:
+            # Group dialog
+            return f"https://vk.com/im?sel={peer_id}&msgid={message_id}"
+        else:
+            # Chat
+            chat_id = peer_id - 2000000000
+            return f"https://vk.com/im?sel=c{chat_id}&msgid={message_id}"
+    
+    def _format_message_attachments(self, attachments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format message attachments with links."""
+        formatted_attachments = []
+        
+        for att in attachments:
+            att_type = att.get('type', 'unknown')
+            formatted_att = {
+                'type': att_type,
+                'original_data': att
+            }
+            
+            if att_type == 'photo':
+                photo = att.get('photo', {})
+                sizes = photo.get('sizes', [])
+                if sizes:
+                    largest = max(sizes, key=lambda x: x.get('width', 0) * x.get('height', 0))
+                    formatted_att['url'] = largest.get('url')
+                formatted_att['width'] = photo.get('width')
+                formatted_att['height'] = photo.get('height')
+                
+            elif att_type == 'video':
+                video = att.get('video', {})
+                formatted_att['title'] = video.get('title', 'Видео')
+                formatted_att['duration'] = video.get('duration')
+                formatted_att['vk_link'] = f"https://vk.com/video{video.get('owner_id', '')}_{video.get('id', '')}"
+                
+            elif att_type == 'doc':
+                doc = att.get('doc', {})
+                formatted_att['title'] = doc.get('title', 'Документ')
+                formatted_att['size'] = doc.get('size')
+                formatted_att['url'] = doc.get('url')
+                
+            elif att_type == 'audio':
+                audio = att.get('audio', {})
+                formatted_att['artist'] = audio.get('artist', '')
+                formatted_att['title'] = audio.get('title', 'Аудио')
+                formatted_att['duration'] = audio.get('duration')
+                
+            elif att_type == 'sticker':
+                sticker = att.get('sticker', {})
+                images = sticker.get('images', [])
+                if images:
+                    formatted_att['url'] = images[-1].get('url')  # Get largest sticker
+                
+            elif att_type == 'wall':
+                wall = att.get('wall', {})
+                owner_id = wall.get('owner_id')
+                post_id = wall.get('id')
+                formatted_att['vk_link'] = f"https://vk.com/wall{owner_id}_{post_id}"
+                formatted_att['text'] = wall.get('text', '')
+            
+            formatted_attachments.append(formatted_att)
+        
+        return formatted_attachments
+    
+    def _format_forwarded_messages(self, fwd_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format forwarded messages with original links."""
+        formatted_fwd = []
+        
+        for fwd in fwd_messages:
+            message_id = fwd.get('id')
+            from_id = fwd.get('from_id')
+            
+            formatted_fwd.append({
+                'message_id': message_id,
+                'from_id': from_id,
+                'date': fwd.get('date'),
+                'date_formatted': datetime.fromtimestamp(fwd.get('date', 0)).strftime('%d.%m.%Y %H:%M:%S'),
+                'text': fwd.get('text', ''),
+                'attachments': self._format_message_attachments(fwd.get('attachments', [])),
+                'fwd_messages': self._format_forwarded_messages(fwd.get('fwd_messages', [])),  # Recursive
+                'vk_link': self._generate_message_link(from_id, message_id) if from_id else None
+            })
+        
+        return formatted_fwd
+    
     def _clean_filename(self, filename: str) -> str:
         """Clean filename from invalid characters."""
         invalid_chars = '<>:"/\\|?*'

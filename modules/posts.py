@@ -109,6 +109,83 @@ class PostsManager:
         
         return formatted_post
     
+    def _generate_post_link(self, owner_id: int, post_id: int) -> str:
+        """Generate VK link to post."""
+        return f"https://vk.com/wall{owner_id}_{post_id}"
+    
+    def _format_attachments(self, attachments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format attachments with links instead of downloading."""
+        formatted_attachments = []
+        
+        for att in attachments:
+            att_type = att.get('type', 'unknown')
+            formatted_att = {
+                'type': att_type,
+                'original_data': att
+            }
+            
+            if att_type == 'photo':
+                photo = att.get('photo', {})
+                # Get largest photo size
+                sizes = photo.get('sizes', [])
+                if sizes:
+                    largest = max(sizes, key=lambda x: x.get('width', 0) * x.get('height', 0))
+                    formatted_att['url'] = largest.get('url')
+                formatted_att['width'] = photo.get('width')
+                formatted_att['height'] = photo.get('height')
+                
+            elif att_type == 'video':
+                video = att.get('video', {})
+                formatted_att['title'] = video.get('title', 'Видео')
+                formatted_att['duration'] = video.get('duration')
+                formatted_att['player'] = video.get('player')
+                formatted_att['vk_link'] = f"https://vk.com/video{video.get('owner_id', '')}_{video.get('id', '')}"
+                
+            elif att_type == 'doc':
+                doc = att.get('doc', {})
+                formatted_att['title'] = doc.get('title', 'Документ')
+                formatted_att['size'] = doc.get('size')
+                formatted_att['url'] = doc.get('url')
+                
+            elif att_type == 'audio':
+                audio = att.get('audio', {})
+                formatted_att['artist'] = audio.get('artist', '')
+                formatted_att['title'] = audio.get('title', 'Аудио')
+                formatted_att['duration'] = audio.get('duration')
+                
+            elif att_type == 'link':
+                link = att.get('link', {})
+                formatted_att['url'] = link.get('url')
+                formatted_att['title'] = link.get('title', 'Ссылка')
+                formatted_att['description'] = link.get('description')
+            
+            formatted_attachments.append(formatted_att)
+        
+        return formatted_attachments
+    
+    def _format_copy_history(self, copy_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format copy history (reposts) with original links."""
+        formatted_history = []
+        
+        for item in copy_history:
+            owner_id = item.get('owner_id')
+            post_id = item.get('id')
+            
+            formatted_item = {
+                'id': post_id,
+                'owner_id': owner_id,
+                'from_id': item.get('from_id', owner_id),
+                'date': item.get('date'),
+                'date_formatted': datetime.fromtimestamp(item.get('date', 0)).strftime('%d.%m.%Y %H:%M:%S'),
+                'text': item.get('text', ''),
+                'vk_link': self._generate_post_link(owner_id, post_id),
+                'attachments': self._format_attachments(item.get('attachments', []))
+            }
+            
+            formatted_history.append(formatted_item)
+        
+        return formatted_history
+    
     def _get_post_comments(self, owner_id: int, post_id: int, count: int = 100) -> List[Dict[str, Any]]:
         """Get comments for a specific post."""
         try:
@@ -122,17 +199,19 @@ class PostsManager:
             
             comments = []
             for comment in comments_data.get('items', []):
+                comment_id = comment.get("id")
                 comments.append({
-                    "id": comment.get("id"),
+                    "id": comment_id,
                     "from_id": comment.get("from_id"),
                     "date": comment.get("date"),
                     "date_formatted": datetime.fromtimestamp(comment.get("date", 0)).strftime('%d.%m.%Y %H:%M:%S'),
                     "text": comment.get("text", ""),
-                    "attachments": comment.get("attachments", []),
+                    "attachments": self._format_attachments(comment.get("attachments", [])),
                     "reply_to_user": comment.get("reply_to_user"),
                     "reply_to_comment": comment.get("reply_to_comment"),
                     "likes": comment.get("likes", {}),
-                    "thread": comment.get("thread", {})
+                    "thread": comment.get("thread", {}),
+                    "vk_link": f"https://vk.com/wall{owner_id}_{post_id}?reply={comment_id}"
                 })
             
             return comments
@@ -242,6 +321,8 @@ class PostsManager:
         }}
         .post-id {{ font-weight: bold; color: #4a76a8; font-size: 16px; }}
         .post-date {{ color: #656d78; font-size: 14px; }}
+        .post-date a {{ color: #4a76a8; text-decoration: none; }}
+        .post-date a:hover {{ text-decoration: underline; }}
         .post-text {{ 
             margin: 15px 0; 
             font-size: 16px; 
@@ -291,6 +372,33 @@ class PostsManager:
             margin-bottom: 5px; 
             font-size: 14px;
         }}
+        .comment-header a {{ color: #4a76a8; text-decoration: none; }}
+        .comment-header a:hover {{ text-decoration: underline; }}
+        .copy-history {{ 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f0f8ff; 
+            border-radius: 8px;
+            border-left: 4px solid #4a76a8;
+        }}
+        .original-post {{ 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }}
+        .original-header {{ 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 8px; 
+            font-size: 14px;
+        }}
+        .original-header a {{ color: #4a76a8; text-decoration: none; }}
+        .original-header a:hover {{ text-decoration: underline; }}
+        .original-text {{ font-size: 14px; line-height: 1.4; }}
+        .attachment a {{ color: #4a76a8; text-decoration: none; }}
+        .attachment a:hover {{ text-decoration: underline; }}
         .comment-text {{ font-size: 14px; line-height: 1.4; }}
         .no-content {{ color: #656d78; font-style: italic; }}
         .search-box {{ 
@@ -343,7 +451,7 @@ class PostsManager:
             <div class="post">
                 <div class="post-header">
                     <div class="post-id">Пост #{post['id']}</div>
-                    <div class="post-date">{post['date_formatted']}</div>
+                    <div class="post-date"><a href="{post['vk_link']}" target="_blank" title="Открыть оригинал в VK">{post['date_formatted']}</a></div>
                 </div>
                 <div class="post-text">{post_text}</div>
 """
@@ -354,17 +462,39 @@ class PostsManager:
                 for att in post['attachments']:
                     att_type = att.get('type', 'unknown')
                     att_info = ""
-                    if att_type == 'photo':
-                        photo = att.get('photo', {})
-                        att_info = f" ({photo.get('width', 0)}x{photo.get('height', 0)})"
-                    elif att_type == 'video':
-                        video = att.get('video', {})
-                        att_info = f" - {video.get('title', 'Без названия')}"
-                    elif att_type == 'doc':
-                        doc = att.get('doc', {})
-                        att_info = f" - {doc.get('title', 'Без названия')}"
+                    att_link = ""
                     
-                    html_content += f'<div class="attachment">📄 {att_type.upper()}{att_info}</div>'
+                    if att_type == 'photo':
+                        att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
+                        if att.get('url'):
+                            att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
+                        else:
+                            att_link = f'🖼️ Фото{att_info}'
+                    elif att_type == 'video':
+                        att_info = f" - {att.get('title', 'Без названия')}"
+                        if att.get('vk_link'):
+                            att_link = f'<a href="{att["vk_link"]}" target="_blank">🎬 Видео{att_info}</a>'
+                        else:
+                            att_link = f'🎬 Видео{att_info}'
+                    elif att_type == 'doc':
+                        att_info = f" - {att.get('title', 'Без названия')}"
+                        if att.get('url'):
+                            att_link = f'<a href="{att["url"]}" target="_blank">📄 Документ{att_info}</a>'
+                        else:
+                            att_link = f'📄 Документ{att_info}'
+                    elif att_type == 'audio':
+                        artist = att.get('artist', '')
+                        title = att.get('title', 'Аудио')
+                        att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
+                    elif att_type == 'link':
+                        if att.get('url'):
+                            att_link = f'<a href="{att["url"]}" target="_blank">🔗 {att.get("title", "Ссылка")}</a>'
+                        else:
+                            att_link = f'🔗 {att.get("title", "Ссылка")}'
+                    else:
+                        att_link = f'📎 {att_type.upper()}'
+                    
+                    html_content += f'<div class="attachment">{att_link}</div>'
                 html_content += '</div>'
             
             # Stats
@@ -382,6 +512,24 @@ class PostsManager:
                 </div>
 """
             
+            # Copy history (reposts)
+            if post.get('copy_history'):
+                html_content += '<div class="copy-history"><strong>🔄 Репост оригинала:</strong>'
+                for original in post['copy_history']:
+                    original_text = original.get('text', '').strip()
+                    if not original_text:
+                        original_text = '<span class="no-content">[Нет текста]</span>'
+                    
+                    html_content += f'''
+                    <div class="original-post">
+                        <div class="original-header">
+                            <a href="{original['vk_link']}" target="_blank" title="Открыть оригинал в VK">Оригинал от {original['date_formatted']}</a>
+                        </div>
+                        <div class="original-text">{original_text}</div>
+                    </div>
+                    '''
+                html_content += '</div>'
+            
             # Comments
             if post.get('comments') and isinstance(post['comments'], list) and post['comments']:
                 html_content += '<div class="comments"><strong>💬 Комментарии:</strong>'
@@ -393,7 +541,7 @@ class PostsManager:
                     html_content += f"""
                     <div class="comment">
                         <div class="comment-header">
-                            Пользователь {comment.get('from_id', 'Unknown')} | {comment['date_formatted']}
+                            <a href="{comment['vk_link']}" target="_blank" title="Открыть комментарий в VK">Пользователь {comment.get('from_id', 'Unknown')} | {comment['date_formatted']}</a>
                         </div>
                         <div class="comment-text">{comment_text}</div>
                     </div>

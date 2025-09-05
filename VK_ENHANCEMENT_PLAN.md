@@ -211,9 +211,9 @@ confirm = input(f"\nProceed with dumping {len(posts)} posts? (y/N): ").lower() =
 - Rate limiting for API calls
 - Secure media file downloads
 
-## Future Enhancements
-- Real-time monitoring mode
+## Future Enhancements - low priority
 - Incremental updates
 - Database storage option
+- Real-time monitoring mode
 - Web interface for configuration
 - Telegram bot integration
