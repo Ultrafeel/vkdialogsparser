@@ -52,52 +52,74 @@ class PostsManager:
     def get_community_posts(self, community_id: str, count: int = 100) -> List[Dict[str, Any]]:
         """Get posts from community wall."""
         try:
-            # Determine if community_id is numeric ID or domain name
-            if community_id.lstrip('-').isdigit():
-                # Numeric ID - use owner_id parameter
-                clean_id = str(community_id).lstrip('-')
-                owner_id = -int(clean_id)
-                posts_data = self.vk_tools.get_all(
-                    method="wall.get",
-                    max_count=count,
-                    values={
+            POSTS_PER_REQUEST = 100  # VK API limit
+            all_posts = []
+            offset = 0
+            owner_id = None
+            
+            print(f"Запрашиваем {count} постов (по {POSTS_PER_REQUEST} за раз)...")
+            
+            while len(all_posts) < count:
+                # Calculate how many posts to request in this iteration
+                posts_to_request = min(POSTS_PER_REQUEST, count - len(all_posts))
+                
+                # Determine if community_id is numeric ID or domain name
+                if community_id.lstrip('-').isdigit():
+                    # Numeric ID - use owner_id parameter
+                    clean_id = str(community_id).lstrip('-')
+                    owner_id = -int(clean_id)
+                    posts_data = self.vk.method("wall.get", {
                         "owner_id": owner_id,
+                        "count": posts_to_request,
+                        "offset": offset,
                         "extended": 1,
                         "filter": "all"
-                    }
-                )
-            else:
-                # Domain name - use domain parameter
-                posts_data = self.vk_tools.get_all(
-                    method="wall.get",
-                    max_count=count,
-                    values={
-                        "domain": community_id,
-                        "extended": 1,
-                        "filter": "all"
-                    }
-                )
-                # Get owner_id from response for further processing
-                if posts_data.get('groups'):
-                    owner_id = -posts_data['groups'][0]['id']
+                    })
                 else:
-                    raise Exception(f"Не удалось найти сообщество с доменом: {community_id}")
+                    # Domain name - use domain parameter
+                    posts_data = self.vk.method("wall.get", {
+                        "domain": community_id,
+                        "count": posts_to_request,
+                        "offset": offset,
+                        "extended": 1,
+                        "filter": "all"
+                    })
+                    # Get owner_id from response for further processing
+                    if posts_data.get('groups') and not owner_id:
+                        owner_id = -posts_data['groups'][0]['id']
+                    elif not owner_id:
+                        raise Exception(f"Не удалось найти сообщество с доменом: {community_id}")
+                
+                # Check if we got any posts
+                current_posts = posts_data.get('items', [])
+                if not current_posts:
+                    print(f"Получено {len(all_posts)} постов (больше постов нет)")
+                    break
+                
+                print(f"Получено {len(current_posts)} постов (всего: {len(all_posts) + len(current_posts)})")
+                
+                # Process posts
+                for post in current_posts:
+                    formatted_post = self._format_post(post, owner_id)
+                    
+                    # Get comments if requested
+                    if self.config.include_comments:
+                        formatted_post['comments'] = self._get_post_comments(owner_id, post['id'])
+                    
+                    # Get likes/reactions if requested
+                    if self.config.include_reactions:
+                        formatted_post['likes'] = self._get_post_likes(owner_id, post['id'])
+                    
+                    all_posts.append(formatted_post)
+                
+                # If we got fewer posts than requested, we've reached the end
+                if len(current_posts) < posts_to_request:
+                    print(f"Достигнут конец списка постов (получено {len(all_posts)} постов)")
+                    break
+                
+                offset += len(current_posts)
             
-            posts = []
-            for post in posts_data.get('items', []):
-                formatted_post = self._format_post(post, owner_id)
-                
-                # Get comments if requested
-                if self.config.include_comments:
-                    formatted_post['comments'] = self._get_post_comments(owner_id, post['id'])
-                
-                # Get likes/reactions if requested
-                if self.config.include_reactions:
-                    formatted_post['likes'] = self._get_post_likes(owner_id, post['id'])
-                
-                posts.append(formatted_post)
-            
-            return posts
+            return all_posts
             
         except Exception as e:
             print(f"Ошибка при получении постов сообщества {community_id}: {e}")
