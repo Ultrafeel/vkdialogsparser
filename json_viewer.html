@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK JSON Viewer</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f7f8fa; 
+            line-height: 1.4;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { 
+            background: linear-gradient(135deg, #4a76a8, #5a8bb8); 
+            color: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .header h1 { margin: 0 0 10px 0; font-size: 28px; }
+        .header p { margin: 5px 0; opacity: 0.9; }
+        .file-selector {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .file-selector select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e5eb;
+            border-radius: 6px;
+            font-size: 16px;
+            background: white;
+        }
+        .post { 
+            background: white; 
+            margin: 20px 0; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e1e5eb;
+        }
+        .post-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .post-id { font-weight: bold; color: #4a76a8; font-size: 16px; }
+        .post-date { color: #656d78; font-size: 14px; }
+        .post-date a { color: #4a76a8; text-decoration: none; }
+        .post-date a:hover { text-decoration: underline; }
+        .post-text { 
+            margin: 15px 0; 
+            font-size: 16px; 
+            line-height: 1.5; 
+            white-space: pre-wrap;
+        }
+        .attachments { 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            border-left: 4px solid #4a76a8;
+        }
+        .attachment { 
+            margin: 8px 0; 
+            padding: 8px 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }
+        .stats { 
+            display: flex; 
+            gap: 20px; 
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px solid #f0f2f5; 
+            font-size: 14px; 
+            color: #656d78;
+        }
+        .stat { display: flex; align-items: center; gap: 5px; }
+        .comments { 
+            margin-top: 20px; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 8px;
+        }
+        .comment { 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border-left: 3px solid #4a76a8;
+        }
+        .comment-header { 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 5px; 
+            font-size: 14px;
+        }
+        .comment-header a { color: #4a76a8; text-decoration: none; }
+        .comment-header a:hover { text-decoration: underline; }
+        .copy-history { 
+            margin: 15px 0; 
+            padding: 15px; 
+            background: #f0f8ff; 
+            border-radius: 8px;
+            border-left: 4px solid #4a76a8;
+        }
+        .original-post { 
+            margin: 10px 0; 
+            padding: 12px; 
+            background: white; 
+            border-radius: 6px; 
+            border: 1px solid #e1e5eb;
+        }
+        .original-header { 
+            font-weight: bold; 
+            color: #4a76a8; 
+            margin-bottom: 8px; 
+            font-size: 14px;
+        }
+        .original-header a { color: #4a76a8; text-decoration: none; }
+        .original-header a:hover { text-decoration: underline; }
+        .original-text { font-size: 14px; line-height: 1.4; }
+        .attachment a { color: #4a76a8; text-decoration: none; }
+        .attachment a:hover { text-decoration: underline; }
+        .comment-text { font-size: 14px; line-height: 1.4; }
+        .no-content { color: #656d78; font-style: italic; }
+        .search-box { 
+            margin-bottom: 20px; 
+            padding: 12px; 
+            border: 2px solid #e1e5eb; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            width: 100%; 
+            box-sizing: border-box;
+        }
+        .loading { 
+            text-align: center; 
+            padding: 40px; 
+            color: #656d78; 
+            font-size: 18px;
+        }
+        .error { 
+            background: #ffe6e6; 
+            color: #d63031; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+            border-left: 4px solid #d63031;
+        }
+        .dialog-item {
+            background: white;
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #4a76a8;
+        }
+        .dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #4a76a8;
+        }
+        .message {
+            margin: 8px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #4a76a8;
+        }
+        .message-header {
+            font-size: 12px;
+            color: #656d78;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>VK JSON Viewer</h1>
+            <p>Автоматический просмотрщик JSON файлов VK</p>
+        </div>
+        
+        <div class="file-selector">
+            <label for="fileSelect"><strong>Выберите JSON файл:</strong></label>
+            <select id="fileSelect" onchange="loadSelectedFile()">
+                <option value="">-- Выберите файл --</option>
+            </select>
+        </div>
+        
+        <input type="text" id="searchBox" class="search-box" placeholder="Поиск..." onkeyup="searchContent()" style="display: none;">
+        
+        <div id="content">
+            <div class="loading">Выберите JSON файл для просмотра</div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let jsonFiles = [];
+
+        // Detect JSON files in the same directory
+        async function detectJsonFiles() {
+            const fileSelect = document.getElementById('fileSelect');
+            
+            // Common VK JSON file patterns
+            const commonFiles = [
+                'dialogs.json',
+                'posts.json'
+            ];
+            
+            // Try to find files with common patterns
+            const patterns = [
+                '_dialogs.json',
+                '_posts.json',
+                '_messages.json'
+            ];
+            
+            // Add file input for manual selection
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.multiple = true;
+            fileInput.style.display = 'none';
+            fileInput.onchange = handleFileSelection;
+            document.body.appendChild(fileInput);
+            
+            // Add manual file selection option
+            const manualOption = document.createElement('option');
+            manualOption.value = 'manual';
+            manualOption.textContent = '📁 Выбрать файлы вручную...';
+            fileSelect.appendChild(manualOption);
+            
+            // Try to load common files
+            for (const file of commonFiles) {
+                try {
+                    const response = await fetch(file);
+                    if (response.ok) {
+                        const option = document.createElement('option');
+                        option.value = file;
+                        option.textContent = file;
+                        fileSelect.appendChild(option);
+                        jsonFiles.push(file);
+                    }
+                } catch (e) {
+                    // File doesn't exist, continue
+                }
+            }
+            
+            // If no files found, show instruction
+            if (jsonFiles.length === 0) {
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="error">
+                        <strong>JSON файлы не найдены</strong><br>
+                        Поместите JSON файлы в ту же папку, что и этот HTML файл, или выберите файлы вручную.
+                    </div>
+                `;
+            }
+        }
+
+        function handleFileSelection(event) {
+            const files = event.target.files;
+            const fileSelect = document.getElementById('fileSelect');
+            
+            // Clear previous manual selections
+            const options = fileSelect.querySelectorAll('option[data-manual="true"]');
+            options.forEach(option => option.remove());
+            
+            for (const file of files) {
+                if (file.name.endsWith('.json')) {
+                    const option = document.createElement('option');
+                    option.value = file.name;
+                    option.textContent = file.name;
+                    option.setAttribute('data-manual', 'true');
+                    option.setAttribute('data-file', JSON.stringify({
+                        name: file.name,
+                        file: file
+                    }));
+                    fileSelect.appendChild(option);
+                }
+            }
+        }
+
+        async function loadSelectedFile() {
+            const fileSelect = document.getElementById('fileSelect');
+            const selectedValue = fileSelect.value;
+            
+            if (!selectedValue) return;
+            
+            if (selectedValue === 'manual') {
+                const fileInput = document.querySelector('input[type="file"]');
+                fileInput.click();
+                return;
+            }
+            
+            const content = document.getElementById('content');
+            const searchBox = document.getElementById('searchBox');
+            
+            content.innerHTML = '<div class="loading">Загрузка...</div>';
+            
+            try {
+                let jsonData;
+                const selectedOption = fileSelect.selectedOptions[0];
+                
+                if (selectedOption.hasAttribute('data-manual')) {
+                    // Load from file object
+                    const fileInfo = JSON.parse(selectedOption.getAttribute('data-file'));
+                    const fileReader = new FileReader();
+                    
+                    fileReader.onload = function(e) {
+                        try {
+                            jsonData = JSON.parse(e.target.result);
+                            currentData = jsonData;
+                            renderContent(jsonData);
+                            searchBox.style.display = 'block';
+                        } catch (error) {
+                            content.innerHTML = `<div class="error">Ошибка парсинга JSON: ${error.message}</div>`;
+                        }
+                    };
+                    
+                    // Find the actual file object
+                    const fileInput = document.querySelector('input[type="file"]');
+                    const files = Array.from(fileInput.files);
+                    const targetFile = files.find(f => f.name === fileInfo.name);
+                    
+                    if (targetFile) {
+                        fileReader.readAsText(targetFile);
+                    }
+                    return;
+                } else {
+                    // Load from URL
+                    const response = await fetch(selectedValue);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    jsonData = await response.json();
+                }
+                
+                currentData = jsonData;
+                renderContent(jsonData);
+                searchBox.style.display = 'block';
+                
+            } catch (error) {
+                content.innerHTML = `<div class="error">Ошибка загрузки файла: ${error.message}</div>`;
+                searchBox.style.display = 'none';
+            }
+        }
+
+        function renderContent(data) {
+            const content = document.getElementById('content');
+            
+            if (data.type === 'community_posts' || data.posts) {
+                renderPosts(data);
+            } else if (data.type === 'dialogs' || data.dialogs) {
+                renderDialogs(data);
+            } else if (Array.isArray(data)) {
+                // Try to detect format from array content
+                if (data.length > 0 && data[0].messages) {
+                    renderDialogs({dialogs: data});
+                } else if (data.length > 0 && (data[0].text !== undefined || data[0].id)) {
+                    renderPosts({posts: data, community: {name: 'Неизвестно'}});
+                } else {
+                    renderGenericJson(data);
+                }
+            } else {
+                renderGenericJson(data);
+            }
+        }
+
+        function renderPosts(data) {
+            const community = data.community || {name: 'Неизвестно'};
+            const posts = data.posts || [];
+            
+            let html = `
+                <div class="header">
+                    <h1>${escapeHtml(community.name)}</h1>
+                    <p><strong>ID:</strong> ${community.id || 'N/A'} | <strong>Тип:</strong> ${community.type || 'group'}</p>
+                    <p><strong>Участников:</strong> ${community.members_count || 'N/A'} | <strong>Постов:</strong> ${posts.length}</p>
+                    <p><strong>Дата экспорта:</strong> ${data.export_date ? data.export_date.substring(0, 19).replace('T', ' ') : 'N/A'}</p>
+                    ${community.description ? `<p><strong>Описание:</strong> ${escapeHtml(community.description.substring(0, 200))}${community.description.length > 200 ? '...' : ''}</p>` : ''}
+                </div>
+                <div class="posts">
+            `;
+            
+            for (const post of posts) {
+                html += renderPost(post);
+            }
+            
+            html += '</div>';
+            document.getElementById('content').innerHTML = html;
+        }
+
+        function renderPost(post) {
+            const postText = post.text ? escapeHtml(post.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+            
+            let html = `
+                <div class="post">
+                    <div class="post-header">
+                        <div class="post-id">Пост #${post.id}</div>
+                        <div class="post-date">
+                            ${post.vk_link ? `<a href="${post.vk_link}" target="_blank" title="Открыть оригинал в VK">` : ''}
+                            ${post.date_formatted || new Date(post.date * 1000).toLocaleString('ru')}
+                            ${post.vk_link ? '</a>' : ''}
+                        </div>
+                    </div>
+                    <div class="post-text">${postText}</div>
+            `;
+            
+            // Attachments
+            if (post.attachments && post.attachments.length > 0) {
+                html += '<div class="attachments"><strong>📎 Вложения:</strong>';
+                for (const att of post.attachments) {
+                    html += renderAttachment(att);
+                }
+                html += '</div>';
+            }
+            
+            // Stats
+            const likes = post.likes?.count || 0;
+            const reposts = post.reposts?.count || 0;
+            const comments = Array.isArray(post.comments) ? post.comments.length : (post.comments?.count || 0);
+            const views = post.views?.count || 0;
+            
+            html += `
+                <div class="stats">
+                    <div class="stat">❤️ ${likes}</div>
+                    <div class="stat">🔄 ${reposts}</div>
+                    <div class="stat">💬 ${comments}</div>
+                    <div class="stat">👁️ ${views}</div>
+                </div>
+            `;
+            
+            // Copy history
+            if (post.copy_history && post.copy_history.length > 0) {
+                html += '<div class="copy-history"><strong>🔄 Репост оригинала:</strong>';
+                for (const original of post.copy_history) {
+                    const originalText = original.text ? escapeHtml(original.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                    html += `
+                        <div class="original-post">
+                            <div class="original-header">
+                                ${original.vk_link ? `<a href="${original.vk_link}" target="_blank" title="Открыть оригинал в VK">` : ''}
+                                Оригинал от ${original.date_formatted || new Date(original.date * 1000).toLocaleString('ru')}
+                                ${original.vk_link ? '</a>' : ''}
+                            </div>
+                            <div class="original-text">${originalText}</div>
+                        </div>
+                    `;
+                }
+                html += '</div>';
+            }
+            
+            // Comments
+            if (post.comments && Array.isArray(post.comments) && post.comments.length > 0) {
+                html += '<div class="comments"><strong>💬 Комментарии:</strong>';
+                const commentsToShow = post.comments.slice(0, 10);
+                for (const comment of commentsToShow) {
+                    const commentText = comment.text ? escapeHtml(comment.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                    html += `
+                        <div class="comment">
+                            <div class="comment-header">
+                                ${comment.vk_link ? `<a href="${comment.vk_link}" target="_blank" title="Открыть комментарий в VK">` : ''}
+                                Пользователь ${comment.from_id || 'Unknown'} | ${comment.date_formatted || new Date(comment.date * 1000).toLocaleString('ru')}
+                                ${comment.vk_link ? '</a>' : ''}
+                            </div>
+                            <div class="comment-text">${commentText}</div>
+                        </div>
+                    `;
+                }
+                if (post.comments.length > 10) {
+                    html += `<div class="no-content">... и ещё ${post.comments.length - 10} комментариев</div>`;
+                }
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        function renderAttachment(att) {
+            let attLink = '';
+            const attType = att.type || 'unknown';
+            
+            switch (attType) {
+                case 'photo':
+                    const info = att.width && att.height ? ` (${att.width}x${att.height})` : '';
+                    attLink = att.url ? 
+                        `<a href="${att.url}" target="_blank">🖼️ Фото${info}</a>` : 
+                        `🖼️ Фото${info}`;
+                    break;
+                case 'video':
+                    const videoInfo = att.title ? ` - ${att.title}` : '';
+                    attLink = att.vk_link ? 
+                        `<a href="${att.vk_link}" target="_blank">🎬 Видео${videoInfo}</a>` : 
+                        `🎬 Видео${videoInfo}`;
+                    break;
+                case 'doc':
+                    const docInfo = att.title ? ` - ${att.title}` : '';
+                    attLink = att.url ? 
+                        `<a href="${att.url}" target="_blank">📄 Документ${docInfo}</a>` : 
+                        `📄 Документ${docInfo}`;
+                    break;
+                case 'audio':
+                    const artist = att.artist || '';
+                    const title = att.title || 'Аудио';
+                    attLink = artist ? `🎵 ${artist} - ${title}` : `🎵 ${title}`;
+                    break;
+                case 'link':
+                    attLink = att.url ? 
+                        `<a href="${att.url}" target="_blank">🔗 ${att.title || 'Ссылка'}</a>` : 
+                        `🔗 ${att.title || 'Ссылка'}`;
+                    break;
+                default:
+                    attLink = `📎 ${attType.toUpperCase()}`;
+            }
+            
+            return `<div class="attachment">${attLink}</div>`;
+        }
+
+        function renderDialogs(data) {
+            const dialogs = data.dialogs || [];
+            
+            let html = `
+                <div class="header">
+                    <h1>Диалоги VK</h1>
+                    <p><strong>Количество диалогов:</strong> ${dialogs.length}</p>
+                    <p><strong>Дата экспорта:</strong> ${data.export_date ? data.export_date.substring(0, 19).replace('T', ' ') : 'N/A'}</p>
+                </div>
+                <div class="dialogs">
+            `;
+            
+            for (const dialog of dialogs) {
+                html += renderDialog(dialog);
+            }
+            
+            html += '</div>';
+            document.getElementById('content').innerHTML = html;
+        }
+
+        function renderDialog(dialog) {
+            const messages = dialog.messages || [];
+            const title = dialog.title || `Диалог ${dialog.id || 'Unknown'}`;
+            
+            let html = `
+                <div class="dialog-item">
+                    <div class="dialog-header">
+                        <span>${escapeHtml(title)}</span>
+                        <span>${messages.length} сообщений</span>
+                    </div>
+            `;
+            
+            const messagesToShow = messages.slice(0, 10);
+            for (const message of messagesToShow) {
+                const messageText = message.text ? escapeHtml(message.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                html += `
+                    <div class="message">
+                        <div class="message-header">
+                            ${message.from_id || 'Unknown'} | ${message.date_formatted || new Date(message.date * 1000).toLocaleString('ru')}
+                        </div>
+                        <div>${messageText}</div>
+                    </div>
+                `;
+            }
+            
+            if (messages.length > 10) {
+                html += `<div class="no-content">... и ещё ${messages.length - 10} сообщений</div>`;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        function renderGenericJson(data) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="header">
+                    <h1>JSON Данные</h1>
+                    <p>Общий просмотр JSON файла</p>
+                </div>
+                <div class="post">
+                    <pre style="white-space: pre-wrap; font-family: monospace; font-size: 14px;">${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        function searchContent() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const posts = document.querySelectorAll('.post, .dialog-item');
+            
+            posts.forEach(post => {
+                const text = post.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    post.style.display = 'block';
+                } else {
+                    post.style.display = 'none';
+                }
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            detectJsonFiles();
+        };
+    </script>
+</body>
+</html>
