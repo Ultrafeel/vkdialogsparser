@@ -84,12 +84,20 @@ class PostsManager:
                         "extended": 1,
                         "filter": "all"
                     })
-                    # Get owner_id from response for further processing
-                    if posts_data.get('groups') and not owner_id:
-                        owner_id = -posts_data['groups'][0]['id']
-                    elif not owner_id:
-                        raise Exception(f"Не удалось найти сообщество с доменом: {community_id}")
-                
+                    # Get owner_id from first post if not set yet
+                    if not owner_id:
+                        current_posts = posts_data.get('items', [])
+                        if current_posts:
+                            owner_id = current_posts[0].get('owner_id')
+                        else:
+                            raise Exception(f"Не удалось найти посты для сообщества: {community_id}")
+                        if not owner_id and posts_data.get('groups'):
+                            owner_id = -posts_data['groups'][0]['id'] 
+                            print(f"Неизвестный метод : owner_id найден: {owner_id}")
+                        if not owner_id:
+                            raise Exception(f"Не удалось найти owner_id для сообщества: {community_id}")
+
+                 
                 # Check if we got any posts
                 current_posts = posts_data.get('items', [])
                 if not current_posts:
