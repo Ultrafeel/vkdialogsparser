@@ -626,7 +626,15 @@
         }
 
         function renderPost(post) {
-            const postText = post.text ? escapeHtml(post.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+            let postText;
+            if (post.text) {
+                // First escape HTML, then parse VK links, then replace newlines
+                postText = escapeHtml(post.text);
+                postText = parseVkLinks(postText);
+                postText = postText.replace(/\n/g, '<br>');
+            } else {
+                postText = '<span class="no-content">[Нет текста]</span>';
+            }
             
             const postId = 'post_' + (post.id || Math.random().toString(36).substr(2, 9));
             
@@ -679,7 +687,15 @@
             if (post.copy_history && post.copy_history.length > 0) {
                 html += '<div class="copy-history"><strong>🔄 Репост оригинала:</strong>';
                 for (const original of post.copy_history) {
-                    const originalText = original.text ? escapeHtml(original.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                    let originalText;
+                    if (original.text) {
+                        // First escape HTML, then parse VK links, then replace newlines
+                        originalText = escapeHtml(original.text);
+                        originalText = parseVkLinks(originalText);
+                        originalText = originalText.replace(/\n/g, '<br>');
+                    } else {
+                        originalText = '<span class="no-content">[Нет текста]</span>';
+                    }
                     html += `
                         <div class="original-post">
                             <div class="original-header">
@@ -710,7 +726,15 @@
                 const commentsToShow = post.comments.slice(0, 10);
                 for (let i = 0; i < commentsToShow.length; i++) {
                     const comment = commentsToShow[i];
-                    const commentText = comment.text ? escapeHtml(comment.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                    let commentText;
+                    if (comment.text) {
+                        // First escape HTML, then parse VK links, then replace newlines
+                        commentText = escapeHtml(comment.text);
+                        commentText = parseVkLinks(commentText);
+                        commentText = commentText.replace(/\n/g, '<br>');
+                    } else {
+                        commentText = '<span class="no-content">[Нет текста]</span>';
+                    }
                     const commentId = `comment_${postId}_${i}`;
                     html += `
                         <div class="comment" id="${commentId}">
@@ -977,7 +1001,15 @@
             const messagesToShow = messages.slice(0, 10);
             for (let i = 0; i < messagesToShow.length; i++) {
                 const message = messagesToShow[i];
-                const messageText = message.text ? escapeHtml(message.text).replace(/\n/g, '<br>') : '<span class="no-content">[Нет текста]</span>';
+                let messageText;
+                if (message.text) {
+                    // First escape HTML, then parse VK links, then replace newlines
+                    messageText = escapeHtml(message.text);
+                    messageText = parseVkLinks(messageText);
+                    messageText = messageText.replace(/\n/g, '<br>');
+                } else {
+                    messageText = '<span class="no-content">[Нет текста]</span>';
+                }
                 const messageId = `message_${dialogId}_${i}`;
                 html += `
                     <div class="message" id="${messageId}">
@@ -1149,6 +1181,19 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function parseVkLinks(text) {
+            if (!text) return text;
+            
+            // Pattern to match [#alias|text|url] format
+            const pattern = /\[#alias\|([^|\]]+)\|([^\]]+)\]/g;
+            
+            return text.replace(pattern, (match, linkText, url) => {
+                // Escape HTML in link text but not in URL
+                const escapedText = escapeHtml(linkText);
+                return `<a href="${url}" target="_blank">${escapedText}</a>`;
+            });
         }
 
         // Initialize on page load

@@ -5,6 +5,7 @@ import html
 import requests
 import hashlib
 import urllib.parse
+import re
 from time import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -31,6 +32,33 @@ def format_number(num: int) -> str:
     elif num >= 1000:
         return f"{num / 1000:.1f}K"
     return str(num)
+
+
+def parse_vk_links(text: str) -> str:
+    """Parse VK-style links in format [#alias|text|url] and convert to HTML links.
+    
+    Args:
+        text: Text that may contain VK-style links
+        
+    Returns:
+        Text with VK-style links converted to HTML <a> tags
+    """
+    if not text:
+        return text
+    
+    # Pattern to match [#alias|text|url] format
+    # The pattern captures: [#anything|link_text|actual_url]
+    pattern = r'\[#alias\|([^|\]]+)\|([^\]]+)\]'
+    
+    def replace_link(match):
+        link_text = match.group(1)
+        url = match.group(2)
+        # Escape HTML in link text but not in URL
+        escaped_text = html.escape(link_text)
+        return f'<a href="{url}" target="_blank">{escaped_text}</a>'
+    
+    # Replace all VK-style links with HTML links
+    return re.sub(pattern, replace_link, text)
 
 
 def download_image(url: str, cache_dir: str, timeout: int = 10) -> Optional[str]:
@@ -558,7 +586,10 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         if not post_text:
             post_text = '<span class="no-content">[Нет текста]</span>'
         else:
-            post_text = html.escape(post_text).replace('\n', '<br>')
+            # First escape HTML, then parse VK links, then replace newlines
+            post_text = html.escape(post_text)
+            post_text = parse_vk_links(post_text)
+            post_text = post_text.replace('\n', '<br>')
         
         html_content += f"""
         <div class="post">
@@ -596,7 +627,10 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 if not original_text:
                     original_text = '<span class="no-content">[Нет текста]</span>'
                 else:
-                    original_text = html.escape(original_text).replace('\n', '<br>')
+                    # First escape HTML, then parse VK links, then replace newlines
+                    original_text = html.escape(original_text)
+                    original_text = parse_vk_links(original_text)
+                    original_text = original_text.replace('\n', '<br>')
                 
                 html_content += f'''
                 <div class="original-post">
@@ -621,7 +655,10 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 if not comment_text:
                     comment_text = '<span class="no-content">[Нет текста]</span>'
                 else:
-                    comment_text = html.escape(comment_text).replace('\n', '<br>')
+                    # First escape HTML, then parse VK links, then replace newlines
+                    comment_text = html.escape(comment_text)
+                    comment_text = parse_vk_links(comment_text)
+                    comment_text = comment_text.replace('\n', '<br>')
                 
                 html_content += f"""
                 <div class="comment">
