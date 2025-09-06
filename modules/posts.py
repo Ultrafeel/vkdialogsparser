@@ -128,6 +128,53 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
     return html_content
 
 
+def render_attachments(attachments: List[Dict[str, Any]]) -> str:
+    """Render all attachments with proper handling for different types."""
+    if not attachments:
+        return ''
+    
+    html_content = '<div class="attachments"><strong>📎 Вложения:</strong>'
+    
+    for att in attachments:
+        att_type = att.get('type', 'unknown')
+        att_info = ""
+        att_link = ""
+        
+        if att_type == 'photo':
+            att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
+            if att.get('url'):
+                att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
+            else:
+                att_link = f'🖼️ Фото{att_info}'
+        elif att_type == 'video':
+            # Use enhanced video rendering
+            html_content += render_video_attachment(att)
+            continue
+        elif att_type == 'doc':
+            att_info = f" - {att.get('title', 'Без названия')}"
+            if att.get('url'):
+                att_link = f'<a href="{att["url"]}" target="_blank">📄 Документ{att_info}</a>'
+            else:
+                att_link = f'📄 Документ{att_info}'
+        elif att_type == 'audio':
+            artist = att.get('artist', '')
+            title = att.get('title', 'Аудио')
+            att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
+        elif att_type == 'link':
+            if att.get('url'):
+                att_link = f'<a href="{att["url"]}" target="_blank">🔗 {att.get("title", "Ссылка")}</a>'
+            else:
+                att_link = f'🔗 {att.get("title", "Ссылка")}'
+        else:
+            att_link = f'📎 {att_type.upper()}'
+        
+        if att_link:  # Only add if att_link is not empty (video attachments are handled separately)
+            html_content += f'<div class="attachment">{att_link}</div>'
+    
+    html_content += '</div>'
+    return html_content
+
+
 def save_posts_html(posts_data: Dict[str, Any], file_path: str):
     """Save posts in HTML format."""
     community = posts_data["community"]
@@ -403,43 +450,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         
         # Attachments
         if post.get('attachments'):
-            html_content += '<div class="attachments"><strong>📎 Вложения:</strong>'
-            for att in post['attachments']:
-                att_type = att.get('type', 'unknown')
-                att_info = ""
-                att_link = ""
-                
-                if att_type == 'photo':
-                    att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
-                    if att.get('url'):
-                        att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
-                    else:
-                        att_link = f'🖼️ Фото{att_info}'
-                elif att_type == 'video':
-                    # Use enhanced video rendering
-                    html_content += render_video_attachment(att)
-                    continue
-                elif att_type == 'doc':
-                    att_info = f" - {att.get('title', 'Без названия')}"
-                    if att.get('url'):
-                        att_link = f'<a href="{att["url"]}" target="_blank">📄 Документ{att_info}</a>'
-                    else:
-                        att_link = f'📄 Документ{att_info}'
-                elif att_type == 'audio':
-                    artist = att.get('artist', '')
-                    title = att.get('title', 'Аудио')
-                    att_link = f'🎵 {artist} - {title}' if artist else f'🎵 {title}'
-                elif att_type == 'link':
-                    if att.get('url'):
-                        att_link = f'<a href="{att["url"]}" target="_blank">🔗 {att.get("title", "Ссылка")}</a>'
-                    else:
-                        att_link = f'🔗 {att.get("title", "Ссылка")}'
-                else:
-                    att_link = f'📎 {att_type.upper()}'
-                
-                if att_link:  # Only add if att_link is not empty (video attachments are handled separately)
-                    html_content += f'<div class="attachment">{att_link}</div>'
-            html_content += '</div>'
+            html_content += render_attachments(post['attachments'])
         
         # Stats
         likes_count = post.get('likes', {}).get('count', 0)
@@ -472,8 +483,13 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                         <a href="{original['vk_link']}" target="_blank" title="Открыть оригинал в VK">Оригинал от {original['date_formatted']}</a>
                     </div>
                     <div class="original-text">{original_text}</div>
-                </div>
                 '''
+                
+                # Handle attachments in copy_history
+                if original.get('attachments'):
+                    html_content += render_attachments(original['attachments'])
+                
+                html_content += '</div>'
             html_content += '</div>'
         
         # Comments

@@ -688,8 +688,18 @@
                                 ${original.vk_link ? '</a>' : ''}
                             </div>
                             <div class="original-text">${originalText}</div>
-                        </div>
                     `;
+                    
+                    // Handle attachments in copy_history
+                    if (original.attachments && original.attachments.length > 0) {
+                        html += '<div class="attachments"><strong>📎 Вложения:</strong>';
+                        for (const att of original.attachments) {
+                            html += renderAttachment(att);
+                        }
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
                 }
                 html += '</div>';
             }
