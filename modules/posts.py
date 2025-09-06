@@ -2,6 +2,9 @@ import json
 import os
 import vk_api
 import html
+import requests
+import hashlib
+import urllib.parse
 from time import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -30,8 +33,97 @@ def format_number(num: int) -> str:
     return str(num)
 
 
-def render_video_attachment(att: Dict[str, Any]) -> str:
-    """Render video attachment with enhanced display."""
+def download_image(url: str, cache_dir: str, timeout: int = 10) -> Optional[str]:
+    """Download image from URL and save to cache directory.
+    
+    Args:
+        url: Image URL to download
+        cache_dir: Directory to save cached images
+        timeout: Request timeout in seconds
+        
+    Returns:
+        Relative path to cached image or None if download failed
+    """
+    if not url or not url.startswith(('http://', 'https://')):
+        return None
+    
+    try:
+        # Create cache directory if it doesn't exist
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # Generate filename from URL hash to avoid duplicates
+        url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
+        
+        # Try to get file extension from URL
+        parsed_url = urllib.parse.urlparse(url)
+        path = parsed_url.path.lower()
+        if path.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
+            ext = os.path.splitext(path)[1]
+        else:
+            ext = '.jpg'  # Default extension
+        
+        filename = f"{url_hash}{ext}"
+        filepath = os.path.join(cache_dir, filename)
+        
+        # Check if file already exists
+        if os.path.exists(filepath):
+            return filename
+        
+        # Download image
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=timeout, stream=True)
+        response.raise_for_status()
+        
+        # Check content type
+        content_type = response.headers.get('content-type', '').lower()
+        if not content_type.startswith('image/'):
+            print(f"Предупреждение: URL не является изображением: {url}")
+            return None
+        
+        # Save image
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        print(f"Изображение сохранено: {filename}")
+        return filename
+        
+    except Exception as e:
+        print(f"Ошибка при загрузке изображения {url}: {e}")
+        return None
+
+
+def get_cached_image_path(original_url: str, cache_dir: str) -> tuple[str, str]:
+    """Get cached image path with fallback to original URL.
+    
+    Args:
+        original_url: Original image URL
+        cache_dir: Cache directory name (relative to HTML file)
+        
+    Returns:
+        Tuple of (cached_path_or_original, original_url_for_comment)
+    """
+    if not original_url:
+        return '', ''
+    
+    # Try to download and cache the image
+    cached_filename = download_image(original_url, cache_dir)
+    
+    if cached_filename:
+        # Return relative path to cached image
+        cache_folder_name = os.path.basename(cache_dir)
+        cached_path = f"{cache_folder_name}/{cached_filename}"
+        return cached_path, original_url
+    else:
+        # Fallback to original URL
+        return original_url, original_url
+
+
+def render_video_attachment(att: Dict[str, Any], cache_dir: str = None) -> str:
+    """Render video attachment with enhanced display and optional image caching."""
     video = att.get('original_data', {}).get('video', {})
     title = att.get('title') or video.get('title', 'Видео')
     description = video.get('description', '')
@@ -57,16 +149,28 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
             <div style="display: flex; align-items: flex-start;">
     '''
     
-    # Thumbnail
+    # Thumbnail with caching support
     if thumbnail:
-        html_content += f'''
+        if cache_dir:
+            cached_thumb, original_thumb = get_cached_image_path(thumbnail, cache_dir)
+            html_content += f'''
+                <a href="{vk_link}" target="_blank">
+                    <img src="{cached_thumb}" 
+                         alt="Превью видео" 
+                         class="video-thumbnail"
+                         onerror="this.src='{original_thumb}'; this.onerror=function(){{this.style.display='none'}};">
+                    <!-- Original URL: {original_thumb} -->
+                </a>
+            '''
+        else:
+            html_content += f'''
                 <a href="{vk_link}" target="_blank">
                     <img src="{thumbnail}" 
                          alt="Превью видео" 
                          class="video-thumbnail"
                          onerror="this.style.display='none'">
                 </a>
-        '''
+            '''
     
     html_content += f'''
                 <div class="video-info">
@@ -94,7 +198,7 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
             </div>
     '''
     
-    # First frames
+    # First frames with caching support
     if frames:
         html_content += '''
             <div class="video-frames">
@@ -102,14 +206,26 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
         '''
         
         for i, frame in enumerate(frames[:4]):
-            html_content += f'''
+            if cache_dir:
+                cached_frame, original_frame = get_cached_image_path(frame, cache_dir)
+                html_content += f'''
+                <a href="{original_frame}" target="_blank">
+                    <img src="{cached_frame}" 
+                         alt="Кадр {i + 1}" 
+                         class="video-frame"
+                         onerror="this.src='{original_frame}'; this.onerror=function(){{this.style.display='none'}};">
+                    <!-- Original URL: {original_frame} -->
+                </a>
+                '''
+            else:
+                html_content += f'''
                 <a href="{frame}" target="_blank">
                     <img src="{frame}" 
                          alt="Кадр {i + 1}" 
                          class="video-frame"
                          onerror="this.style.display='none'">
                 </a>
-            '''
+                '''
         
         html_content += '</div>'
     
@@ -117,8 +233,8 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
     return html_content
 
 
-def render_attachments(attachments: List[Dict[str, Any]]) -> str:
-    """Render all attachments with proper handling for different types."""
+def render_attachments(attachments: List[Dict[str, Any]], cache_dir: str = None) -> str:
+    """Render all attachments with proper handling for different types and optional image caching."""
     if not attachments:
         return ''
     
@@ -132,12 +248,21 @@ def render_attachments(attachments: List[Dict[str, Any]]) -> str:
         if att_type == 'photo':
             att_info = f" ({att.get('width', 0)}x{att.get('height', 0)})"
             if att.get('url'):
-                att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
+                if cache_dir:
+                    cached_photo, original_photo = get_cached_image_path(att['url'], cache_dir)
+                    att_link = f'''<a href="{original_photo}" target="_blank">
+                        <img src="{cached_photo}" alt="Фото{att_info}" style="max-width: 200px; max-height: 200px; border-radius: 6px; margin: 5px 0;"
+                             onerror="this.src='{original_photo}'; this.onerror=function(){{this.style.display='none'}};">
+                        <!-- Original URL: {original_photo} -->
+                    </a>
+                    <br>🖼️ Фото{att_info}'''
+                else:
+                    att_link = f'<a href="{att["url"]}" target="_blank">🖼️ Фото{att_info}</a>'
             else:
                 att_link = f'🖼️ Фото{att_info}'
         elif att_type == 'video':
-            # Use enhanced video rendering
-            html_content += render_video_attachment(att)
+            # Use enhanced video rendering with caching support
+            html_content += render_video_attachment(att, cache_dir)
             continue
         elif att_type == 'doc':
             att_info = f" - {att.get('title', 'Без названия')}"
@@ -165,9 +290,16 @@ def render_attachments(attachments: List[Dict[str, Any]]) -> str:
 
 
 def save_posts_html(posts_data: Dict[str, Any], file_path: str):
-    """Save posts in HTML format."""
+    """Save posts in HTML format with image caching support."""
     community = posts_data["community"]
     posts = posts_data["posts"]
+    
+    # Create cache directory for images
+    html_dir = os.path.dirname(file_path)
+    html_name = os.path.splitext(os.path.basename(file_path))[0]
+    cache_dir = os.path.join(html_dir, f"{html_name}_files")
+    
+    print(f"Создание кеша изображений в: {cache_dir}")
     
     html_content = f"""<!DOCTYPE html>
 <html lang="ru">
@@ -439,7 +571,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
         
         # Attachments
         if post.get('attachments'):
-            html_content += render_attachments(post['attachments'])
+            html_content += render_attachments(post['attachments'], cache_dir)
         
         # Stats
         likes_count = post.get('likes', {}).get('count', 0)
@@ -476,7 +608,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
                 
                 # Handle attachments in copy_history
                 if original.get('attachments'):
-                    html_content += render_attachments(original['attachments'])
+                    html_content += render_attachments(original['attachments'], cache_dir)
                 
                 html_content += '</div>'
             html_content += '</div>'
