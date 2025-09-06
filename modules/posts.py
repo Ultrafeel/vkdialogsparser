@@ -82,23 +82,12 @@ def render_video_attachment(att: Dict[str, Any]) -> str:
     
     # Description
     if description:
-        # Truncate long descriptions
-        if len(description) > 200:
-            short_desc = description[:200] + '...'
-            html_content += f'''
-                    <div class="video-description">
-                        {html.escape(short_desc)}
-                        <div class="video-description-full" style="display: none;">
-                            {html.escape(description)}
-                        </div>
-                    </div>
-            '''
-        else:
-            html_content += f'''
+        # For static HTML, show full description without truncation
+        html_content += f'''
                     <div class="video-description">
                         {html.escape(description)}
                     </div>
-            '''
+        '''
     
     html_content += '''
                 </div>
@@ -424,7 +413,7 @@ def save_posts_html(posts_data: Dict[str, Any], file_path: str):
             <p><strong>ID:</strong> {community['id']} | <strong>Тип:</strong> {community.get('type', 'group')}</p>
             <p><strong>Участников:</strong> {community.get('members_count', 'N/A')} | <strong>Постов:</strong> {len(posts)}</p>
             <p><strong>Дата экспорта:</strong> {posts_data['export_date'][:19].replace('T', ' ')}</p>
-            {f'<p><strong>Описание:</strong> {community.get("description", "")[:200]}{"..." if len(community.get("description", "")) > 200 else ""}</p>' if community.get('description') else ''}
+            {f'<p><strong>Описание:</strong> {community.get("description", "")}</p>' if community.get('description') else ''}
         </div>
         
         <input type="text" id="searchBox" class="search-box" placeholder="Поиск по постам..." onkeyup="searchPosts()">
