@@ -695,49 +695,82 @@ class PostsManager:
         self.config = config
     
     def get_community_info(self, community_id: str) -> Optional[Dict[str, Any]]:
-        """Get community information."""
+        """Get community or user information."""
         try:
-            # Support both numeric IDs and domain names
-            if community_id.lstrip('-').isdigit():
-                # Numeric ID
-                clean_id = str(community_id).lstrip('-')
-                community_data = self.vk.method("groups.getById", {
-                    "group_ids": clean_id,
-                    "fields": "description,members_count,activity"
-                })
-            else:
-                # Domain name
-                community_data = self.vk.method("groups.getById", {
-                    "group_ids": community_id,
-                    "fields": "description,members_count,activity"
-                })
+            # First try to get as a group/community
+            try:
+                if community_id.lstrip('-').isdigit():
+                    # Numeric ID
+                    clean_id = str(community_id).lstrip('-')
+                    community_data = self.vk.method("groups.getById", {
+                        "group_ids": clean_id,
+                        "fields": "description,members_count,activity"
+                    })
+                else:
+                    # Domain name
+                    community_data = self.vk.method("groups.getById", {
+                        "group_ids": community_id,
+                        "fields": "description,members_count,activity"
+                    })
+                
+                if community_data:
+                    info = community_data[0]
+                    return {
+                        "id": -int(info.get("id")),  # VK uses negative IDs for communities
+                        "name": info.get("name", ""),
+                        "screen_name": info.get("screen_name", ""),
+                        "description": info.get("description", ""),
+                        "members_count": info.get("members_count", 0),
+                        "activity": info.get("activity", ""),
+                        "type": info.get("type", "group"),
+                        "is_user": False
+                    }
+            except Exception:
+                # If groups.getById fails, try as a user
+                try:
+                    user_data = self.vk.method("users.get", {
+                        "user_ids": community_id,
+                        "fields": "about,followers_count,last_seen"
+                    })
+                    
+                    if user_data:
+                        info = user_data[0]
+                        full_name = f"{info.get('first_name', '')} {info.get('last_name', '')}".strip()
+                        return {
+                            "id": int(info.get("id")),  # Users have positive IDs
+                            "name": full_name,
+                            "screen_name": info.get("screen_name", community_id),
+                            "description": info.get("about", ""),
+                            "members_count": info.get("followers_count", 0),
+                            "activity": info.get("last_seen", {}).get("time", ""),
+                            "type": "user",
+                            "is_user": True
+                        }
+                except Exception as user_error:
+                    print(f"Не удалось получить информацию как о пользователе: {user_error}")
             
-            if community_data:
-                info = community_data[0]
-                return {
-                    "id": -int(info.get("id")),  # VK uses negative IDs for communities
-                    "name": info.get("name", ""),
-                    "screen_name": info.get("screen_name", ""),
-                    "description": info.get("description", ""),
-                    "members_count": info.get("members_count", 0),
-                    "activity": info.get("activity", ""),
-                    "type": info.get("type", "group")
-                }
             return None
             
         except Exception as e:
-            print(f"Ошибка при получении информации о сообществе {community_id}: {e}")
+            print(f"Ошибка при получении информации о {community_id}: {e}")
             return None
     
     def get_community_posts(self, community_id: str, count: int = 100) -> List[Dict[str, Any]]:
-        """Get posts from community wall."""
+        """Get posts from community or user wall."""
         try:
             POSTS_PER_REQUEST = 100  # VK API limit
             all_posts = []
             offset = 0
             owner_id = None
             
-            print(f"Запрашиваем {count} постов (по {POSTS_PER_REQUEST} за раз)...")
+            # First, get info to determine if it's a user or community
+            info = self.get_community_info(community_id)
+            if info:
+                owner_id = info["id"]
+                entity_type = "пользователя" if info.get("is_user", False) else "сообщества"
+                print(f"Запрашиваем {count} постов со стены {entity_type} {info['name']} (по {POSTS_PER_REQUEST} за раз)...")
+            else:
+                print(f"Запрашиваем {count} постов (по {POSTS_PER_REQUEST} за раз)...")
             
             while len(all_posts) < count:
                 # Calculate how many posts to request in this iteration
@@ -747,7 +780,11 @@ class PostsManager:
                 if community_id.lstrip('-').isdigit():
                     # Numeric ID - use owner_id parameter
                     clean_id = str(community_id).lstrip('-')
-                    owner_id = -int(clean_id)
+                    # If we don't have owner_id from info, determine it based on input
+                    if not owner_id:
+                        # Try as community first (negative ID)
+                        owner_id = -int(clean_id)
+                    
                     posts_data = self.vk.method("wall.get", {
                         "owner_id": owner_id,
                         "count": posts_to_request,
@@ -770,12 +807,15 @@ class PostsManager:
                         if current_posts:
                             owner_id = current_posts[0].get('owner_id')
                         else:
-                            raise Exception(f"Не удалось найти посты для сообщества: {community_id}")
+                            raise Exception(f"Не удалось найти посты для {community_id}")
                         if not owner_id and posts_data.get('groups'):
                             owner_id = -posts_data['groups'][0]['id'] 
-                            print(f"Неизвестный метод : owner_id найден: {owner_id}")
+                            print(f"owner_id найден из groups: {owner_id}")
+                        if not owner_id and posts_data.get('profiles'):
+                            owner_id = posts_data['profiles'][0]['id']
+                            print(f"owner_id найден из profiles: {owner_id}")
                         if not owner_id:
-                            raise Exception(f"Не удалось найти owner_id для сообщества: {community_id}")
+                            raise Exception(f"Не удалось найти owner_id для {community_id}")
 
                  
                 # Check if we got any posts
